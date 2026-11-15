@@ -5,6 +5,7 @@ import ge.kiu.loanplatform.dto.LoanApplicationResponse;
 import ge.kiu.loanplatform.dto.RejectRequest;
 import ge.kiu.loanplatform.entity.ApplicationStatus;
 import ge.kiu.loanplatform.entity.Customer;
+import ge.kiu.loanplatform.entity.Document;
 import ge.kiu.loanplatform.entity.LoanApplication;
 import ge.kiu.loanplatform.entity.LoanProduct;
 import ge.kiu.loanplatform.exception.BusinessRuleException;
@@ -26,6 +27,7 @@ public class LoanApplicationService {
     private final LoanApplicationRepository loanApplicationRepository;
     private final CustomerRepository customerRepository;
     private final LoanProductRepository loanProductRepository;
+    private final FileStorageService fileStorageService;
 
     @Transactional
     public LoanApplicationResponse create(LoanApplicationRequest request) {
@@ -98,7 +100,11 @@ public class LoanApplicationService {
         LoanApplication application = findApplication(id);
         requireSubmitted(application, "cancelled");
 
-        // its Document rows are deleted too (cascade = ALL, orphanRemoval = true on LoanApplication.documents)
+        // remove the uploaded files from disk
+        for (Document document : application.getDocuments()) {
+            fileStorageService.delete(document.getStoredFilePath());
+        }
+        // the Document rows are deleted too (cascade = ALL, orphanRemoval = true on LoanApplication.documents)
         loanApplicationRepository.delete(application);
     }
 

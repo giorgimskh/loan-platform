@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: loan-platform-db
+    environment:
+      POSTGRES_DB: loan_platform
+      POSTGRES_USER: loan
+      POSTGRES_PASSWORD: loan
+    ports:
+      - "5433:5432"   # host 5433 -> container 5432 (5432 is used by the local PostgreSQL)
+    volumes:
+      - loan_platform_data:/var/lib/postgresql/data
+
+volumes:
+  loan_platform_data:
