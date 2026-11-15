@@ -21,6 +21,7 @@ For every request with a JSON body set the header `Content-Type: application/jso
 | 2 | `POST /api/customers` | same body again | 409, "email ... already exists" |
 | 3 | `POST /api/customers` | `{"fullName":"","email":"bad","personalNumber":"12"}` | 400, `fieldErrors` for fullName, email, personalNumber |
 | 4 | `GET /api/customers/1` | – | 200 |
+| 4a | `GET /api/customers` | – | 200, list with the customer from step 1 |
 | 5 | `GET /api/customers/99` | – | 404 |
 | 6 | `GET /api/customers/abc` | – | 400, invalid value for `id` |
 

@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class CustomerService {
@@ -33,6 +35,13 @@ public class CustomerService {
 
         Customer saved = customerRepository.save(customer);
         return CustomerResponse.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CustomerResponse> getAll() {
+        return customerRepository.findAll().stream()
+                .map(CustomerResponse::from)
+                .toList();
     }
 
     @Transactional(readOnly = true)
