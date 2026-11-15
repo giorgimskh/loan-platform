@@ -21,6 +21,9 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     // Method-name query: "WHERE customer.id = ? AND status = ?"
     List<LoanApplication> findByCustomerIdAndStatus(Long customerId, ApplicationStatus status);
 
+    // Method-name query: used before deleting a product, so we can return a clear 409 instead of a DB error
+    boolean existsByLoanProductId(Long loanProductId);
+
     // @Query (JPQL): total approved amount per product, using SUM + GROUP BY
     @Query("""
             SELECT p.name AS productName, SUM(a.amount) AS totalAmount
