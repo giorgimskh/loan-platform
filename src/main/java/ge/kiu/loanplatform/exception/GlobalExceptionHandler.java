@@ -7,7 +7,11 @@ import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -49,6 +53,30 @@ public class GlobalExceptionHandler {
         Map<String, String> fieldErrors = new LinkedHashMap<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(error.getField(), error.getDefaultMessage());
+        }
+        return build(HttpStatus.BAD_REQUEST, "Validation failed", request, fieldErrors);
+    }
+
+    // A constraint written directly on a controller parameter failed
+    // (e.g. @Positive on the id in /api/customers/-5).
+    // When a method has such a parameter, Spring also reports its @Valid body errors here,
+    // so we handle both kinds and keep the same JSON shape as handleValidation.
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErrorResponse> handleMethodValidation(HandlerMethodValidationException ex, HttpServletRequest request) {
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        for (ParameterValidationResult result : ex.getParameterValidationResults()) {
+            if (result instanceof ParameterErrors bodyErrors) {
+                // the @Valid @RequestBody DTO: one entry per invalid field
+                for (FieldError error : bodyErrors.getFieldErrors()) {
+                    fieldErrors.put(error.getField(), error.getDefaultMessage());
+                }
+            } else {
+                // a simple parameter like id: use the parameter name as the key
+                String parameterName = result.getMethodParameter().getParameterName();
+                for (MessageSourceResolvable error : result.getResolvableErrors()) {
+                    fieldErrors.put(parameterName, error.getDefaultMessage());
+                }
+            }
         }
         return build(HttpStatus.BAD_REQUEST, "Validation failed", request, fieldErrors);
     }

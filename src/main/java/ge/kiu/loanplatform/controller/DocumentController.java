@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.controller;
 
 import ge.kiu.loanplatform.dto.DocumentResponse;
 import ge.kiu.loanplatform.service.DocumentService;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,9 +24,10 @@ public class DocumentController {
     // multipart/form-data with two parts: "file" and "documentTypeId"
     @PostMapping(value = "/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public DocumentResponse upload(@PathVariable Long id,
-                                   @RequestParam MultipartFile file,
-                                   @RequestParam Long documentTypeId) {
+    public DocumentResponse upload(
+            @PathVariable @Positive(message = "Id must be a positive number") Long id,
+            @RequestParam MultipartFile file,
+            @RequestParam @Positive(message = "Document type id must be a positive number") Long documentTypeId) {
         return documentService.upload(id, file, documentTypeId);
     }
 }

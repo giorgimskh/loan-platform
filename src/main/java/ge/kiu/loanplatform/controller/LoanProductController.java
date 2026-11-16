@@ -4,6 +4,7 @@ import ge.kiu.loanplatform.dto.LoanProductRequest;
 import ge.kiu.loanplatform.dto.LoanProductResponse;
 import ge.kiu.loanplatform.service.LoanProductService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,13 +38,13 @@ public class LoanProductController {
     }
 
     @PutMapping("/{id}")
-    public LoanProductResponse update(@PathVariable Long id, @Valid @RequestBody LoanProductRequest request) {
+    public LoanProductResponse update(@PathVariable @Positive(message = "Id must be a positive number") Long id, @Valid @RequestBody LoanProductRequest request) {
         return loanProductService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public void delete(@PathVariable @Positive(message = "Id must be a positive number") Long id) {
         loanProductService.delete(id);
     }
 }

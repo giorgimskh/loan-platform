@@ -2430,6 +2430,471 @@
           }
         }
       ]
+    },
+    {
+      "name": "6. Queries, report and validation",
+      "item": [
+        {
+          "name": "Customer applications - approved only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Only APPROVED applications of this customer are returned\", function () {",
+                  "    const list = pm.response.json();",
+                  "    pm.expect(list.length).to.be.at.least(1);",
+                  "    list.forEach(function (a) {",
+                  "        pm.expect(a.status).to.eql(\"APPROVED\");",
+                  "        pm.expect(a.customerId).to.eql(Number(pm.collectionVariables.get(\"customerId\")));",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}/applications?status=APPROVED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}",
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "APPROVED"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Customer applications - missing status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error names the missing parameter\", function () {",
+                  "    pm.expect(pm.response.json().message).to.include(\"status\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}/applications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}",
+                "applications"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Customer applications - invalid status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}/applications?status=WRONG",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}",
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "WRONG"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Customer applications - unknown customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/999999/applications?status=APPROVED",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "999999",
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "APPROVED"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search applications - by product and amount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Every result is for the product and above the amount\", function () {",
+                  "    const list = pm.response.json();",
+                  "    pm.expect(list.length).to.be.at.least(1);",
+                  "    list.forEach(function (a) {",
+                  "        pm.expect(a.loanProductName).to.eql(pm.collectionVariables.get(\"productName\"));",
+                  "        pm.expect(a.amount).to.be.above(1000);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/search?productName={{productName}}&amountAbove=1000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "productName",
+                  "value": "{{productName}}"
+                },
+                {
+                  "key": "amountAbove",
+                  "value": "1000"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search applications - missing amountAbove",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error names the missing parameter\", function () {",
+                  "    pm.expect(pm.response.json().message).to.include(\"amountAbove\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/search?productName={{productName}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "productName",
+                  "value": "{{productName}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search applications - negative amount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field error for amountAbove\", function () {",
+                  "    pm.expect(pm.response.json().fieldErrors).to.have.property(\"amountAbove\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/search?productName={{productName}}&amountAbove=-1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "productName",
+                  "value": "{{productName}}"
+                },
+                {
+                  "key": "amountAbove",
+                  "value": "-1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Report - approved totals per product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Report has a row for the product with an approved application\", function () {",
+                  "    const row = pm.response.json().find(function (r) {",
+                  "        return r.productName === pm.collectionVariables.get(\"productName\");",
+                  "    });",
+                  "    pm.expect(row).to.not.be.undefined;",
+                  "    pm.expect(row.totalApprovedAmount).to.be.at.least(7000);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/reports/approved-totals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "reports",
+                "approved-totals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validation - negative id in the URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field error for id\", function () {",
+                  "    pm.expect(pm.response.json().fieldErrors.id).to.eql(\"Id must be a positive number\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/-1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "-1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validation - HTML in customer name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field error for fullName\", function () {",
+                  "    pm.expect(pm.response.json().fieldErrors).to.have.property(\"fullName\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"<script>alert(1)</script>\",\n  \"email\": \"safe@mail.com\",\n  \"personalNumber\": \"01234567890\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Validation - negative ids and too many decimals",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field errors for customerId, loanProductId and amount\", function () {",
+                  "    const errors = pm.response.json().fieldErrors;",
+                  "    pm.expect(errors).to.have.property(\"customerId\");",
+                  "    pm.expect(errors).to.have.property(\"loanProductId\");",
+                  "    pm.expect(errors).to.have.property(\"amount\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": -1,\n  \"loanProductId\": 0,\n  \"amount\": 5000.999,\n  \"termMonths\": 12\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   ]
 }

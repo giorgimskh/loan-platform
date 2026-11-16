@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.controller;
 
 import ge.kiu.loanplatform.dto.LoanApplicationRequest;
 import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.dto.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.RejectRequest;
 import ge.kiu.loanplatform.entity.ApplicationStatus;
 import ge.kiu.loanplatform.exception.BusinessRuleException;
@@ -70,6 +71,48 @@ class LoanApplicationControllerTest {
     }
 
     @Test
+    void create_returns400_whenIdsAreNegative() throws Exception {
+        mockMvc.perform(post("/api/applications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"customerId":-1,"loanProductId":0,"amount":5000,"termMonths":12}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.customerId").value("Customer id must be a positive number"))
+                .andExpect(jsonPath("$.fieldErrors.loanProductId").value("Loan product id must be a positive number"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void create_returns400_whenAmountHasTooManyDecimalPlaces() throws Exception {
+        mockMvc.perform(post("/api/applications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"customerId":1,"loanProductId":1,"amount":5000.999,"termMonths":12}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.amount")
+                        .value("Amount can have at most 13 digits before and 2 after the decimal point"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void reject_returns400_whenReasonContainsHtml() throws Exception {
+        mockMvc.perform(put("/api/applications/1/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decisionComment":"<script>alert(1)</script>"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.decisionComment")
+                        .value("Rejection reason must not contain < or > or control characters"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
     void create_returns400_whenAmountIsOutsideProductRange() throws Exception {
         when(loanApplicationService.create(any(LoanApplicationRequest.class)))
                 .thenThrow(new BusinessRuleException("Amount must be between 500.00 and 20000.00 for product Consumer Loan"));
@@ -131,6 +174,28 @@ class LoanApplicationControllerTest {
     }
 
     @Test
+    void reject_returns400_whenIdIsNegative() throws Exception {
+        mockMvc.perform(put("/api/applications/-1/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"decisionComment":"Income too low"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").value("Id must be a positive number"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void delete_returns400_whenIdIsNegative() throws Exception {
+        mockMvc.perform(delete("/api/applications/-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").value("Id must be a positive number"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
     void delete_returns204_whenApplicationIsCancelled() throws Exception {
         mockMvc.perform(delete("/api/applications/1"))
                 .andExpect(status().isNoContent());
@@ -151,6 +216,51 @@ class LoanApplicationControllerTest {
     void getAll_returns400_whenStatusIsNotAValidEnumValue() throws Exception {
         mockMvc.perform(get("/api/applications").param("status", "WRONG"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void search_returns200WithMatchingApplications() throws Exception {
+        when(loanApplicationService.searchByProductAndAmount("Consumer Loan", new BigDecimal("1000")))
+                .thenReturn(List.of(response(ApplicationStatus.SUBMITTED, null)));
+
+        mockMvc.perform(get("/api/applications/search")
+                        .param("productName", "Consumer Loan")
+                        .param("amountAbove", "1000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].loanProductName").value("Consumer Loan"))
+                .andExpect(jsonPath("$[0].amount").value(5000));
+    }
+
+    @Test
+    void search_returns400_whenAmountAboveIsMissing() throws Exception {
+        mockMvc.perform(get("/api/applications/search").param("productName", "Consumer Loan"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Missing required parameter 'amountAbove'"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void search_returns400_whenParametersAreInvalid() throws Exception {
+        mockMvc.perform(get("/api/applications/search")
+                        .param("productName", "   ")
+                        .param("amountAbove", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.productName").value("Product name is required"))
+                .andExpect(jsonPath("$.fieldErrors.amountAbove").value("Amount cannot be negative"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void approvedTotals_returns200WithTotalPerProduct() throws Exception {
+        when(loanApplicationService.getApprovedTotalsPerProduct())
+                .thenReturn(List.of(new ProductTotalResponse("Consumer Loan", new BigDecimal("12000.00"))));
+
+        mockMvc.perform(get("/api/applications/reports/approved-totals"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].productName").value("Consumer Loan"))
+                .andExpect(jsonPath("$[0].totalApprovedAmount").value(12000.00));
     }
 
     private LoanApplicationResponse response(ApplicationStatus status, String decisionComment) {

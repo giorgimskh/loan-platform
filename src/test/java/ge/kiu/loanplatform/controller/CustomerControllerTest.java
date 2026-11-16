@@ -4,13 +4,20 @@ import ge.kiu.loanplatform.dto.CustomerRequest;
 import ge.kiu.loanplatform.dto.CustomerResponse;
 import ge.kiu.loanplatform.exception.ConflictException;
 import ge.kiu.loanplatform.exception.ResourceNotFoundException;
+import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.entity.ApplicationStatus;
 import ge.kiu.loanplatform.service.CustomerService;
+import ge.kiu.loanplatform.service.LoanApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -30,6 +37,51 @@ class CustomerControllerTest {
 
     @MockitoBean
     private CustomerService customerService;
+
+    // the controller also needs this service (for /api/customers/{id}/applications)
+    @MockitoBean
+    private LoanApplicationService loanApplicationService;
+
+    @Test
+    void getApplications_returns200WithApplicationsOfTheCustomer() throws Exception {
+        when(loanApplicationService.getByCustomerAndStatus(1L, ApplicationStatus.SUBMITTED))
+                .thenReturn(List.of(new LoanApplicationResponse(7L, new BigDecimal("5000"), 12,
+                        ApplicationStatus.SUBMITTED, LocalDateTime.now(), null,
+                        1L, "Ana Beridze", 1L, "Consumer Loan", List.of())));
+
+        mockMvc.perform(get("/api/customers/1/applications").param("status", "SUBMITTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(7))
+                .andExpect(jsonPath("$[0].status").value("SUBMITTED"))
+                .andExpect(jsonPath("$[0].customerFullName").value("Ana Beridze"));
+    }
+
+    @Test
+    void getApplications_returns400_whenStatusIsMissing() throws Exception {
+        mockMvc.perform(get("/api/customers/1/applications"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Missing required parameter 'status'"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void getApplications_returns400_whenStatusIsNotAValidEnumValue() throws Exception {
+        mockMvc.perform(get("/api/customers/1/applications").param("status", "WRONG"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void getApplications_returns404_whenCustomerDoesNotExist() throws Exception {
+        when(loanApplicationService.getByCustomerAndStatus(99L, ApplicationStatus.APPROVED))
+                .thenThrow(new ResourceNotFoundException("Customer with id 99 not found"));
+
+        mockMvc.perform(get("/api/customers/99/applications").param("status", "APPROVED"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Customer with id 99 not found"));
+    }
 
     @Test
     void create_returns201_whenBodyIsValid() throws Exception {
@@ -61,6 +113,60 @@ class CustomerControllerTest {
 
         // validation failed before the controller method ran, so the service was never called
         verifyNoInteractions(customerService);
+    }
+
+    @Test
+    void create_returns400_whenFullNameContainsHtml() throws Exception {
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"<script>alert(1)</script>","email":"ana@mail.com","personalNumber":"01234567890"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.fullName")
+                        .value("Full name may contain only letters, spaces, dots, apostrophes and hyphens"));
+
+        verifyNoInteractions(customerService);
+    }
+
+    @Test
+    void create_returns400_whenEmailHasNoDomainEnding() throws Exception {
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Ana Beridze","email":"ana@mail","personalNumber":"01234567890"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.email").value("Email must be a valid email address"));
+
+        verifyNoInteractions(customerService);
+    }
+
+    @Test
+    void create_returns400_whenPhoneIsNotANumber() throws Exception {
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Ana Beridze","email":"ana@mail.com","personalNumber":"01234567890","phone":"call me"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.phone")
+                        .value("Phone must be 9 to 15 digits, optionally starting with +"));
+
+        verifyNoInteractions(customerService);
+    }
+
+    @Test
+    void create_returns201_whenPhoneIsMissing() throws Exception { // phone is optional
+        when(customerService.create(any(CustomerRequest.class)))
+                .thenReturn(new CustomerResponse(1L, "Ana Beridze", "ana@mail.com", "01234567890", null));
+
+        mockMvc.perform(post("/api/customers")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Ana Beridze","email":"ana@mail.com","personalNumber":"01234567890"}
+                                """))
+                .andExpect(status().isCreated());
     }
 
     @Test
@@ -105,6 +211,21 @@ class CustomerControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Customer with id 99 not found"))
                 .andExpect(jsonPath("$.path").value("/api/customers/99"));
+    }
+
+    @Test
+    void getById_returns400_whenIdIsNegative() throws Exception {
+        mockMvc.perform(get("/api/customers/-5"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").value("Id must be a positive number"));
+
+        verifyNoInteractions(customerService);
+    }
+
+    @Test
+    void getById_returns400_whenIdIsZero() throws Exception {
+        mockMvc.perform(get("/api/customers/0"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

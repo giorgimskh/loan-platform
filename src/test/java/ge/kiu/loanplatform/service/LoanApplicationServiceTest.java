@@ -14,6 +14,8 @@ import ge.kiu.loanplatform.exception.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.CustomerRepository;
 import ge.kiu.loanplatform.repository.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.LoanProductRepository;
+import ge.kiu.loanplatform.repository.ProductTotalAmount;
+import ge.kiu.loanplatform.dto.ProductTotalResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,11 +24,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -204,6 +208,55 @@ class LoanApplicationServiceTest {
 
         assertThatThrownBy(() -> loanApplicationService.getById(99L))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---------- queries ----------
+
+    @Test
+    void getByCustomerAndStatus_returnsApplicationsOfTheCustomer() {
+        when(customerRepository.existsById(1L)).thenReturn(true);
+        when(loanApplicationRepository.findByCustomerIdAndStatus(1L, ApplicationStatus.SUBMITTED))
+                .thenReturn(List.of(application(ApplicationStatus.SUBMITTED)));
+
+        List<LoanApplicationResponse> result =
+                loanApplicationService.getByCustomerAndStatus(1L, ApplicationStatus.SUBMITTED);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().customerFullName()).isEqualTo("Ana Beridze");
+    }
+
+    @Test
+    void getByCustomerAndStatus_throwsNotFound_whenCustomerDoesNotExist() {
+        when(customerRepository.existsById(99L)).thenReturn(false);
+
+        assertThatThrownBy(() -> loanApplicationService.getByCustomerAndStatus(99L, ApplicationStatus.SUBMITTED))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(loanApplicationRepository, never()).findByCustomerIdAndStatus(any(), any());
+    }
+
+    @Test
+    void searchByProductAndAmount_returnsMatchingApplications() {
+        when(loanApplicationRepository.findByProductNameAndAmountGreaterThan("Consumer Loan", new BigDecimal("1000")))
+                .thenReturn(List.of(application(ApplicationStatus.APPROVED)));
+
+        List<LoanApplicationResponse> result =
+                loanApplicationService.searchByProductAndAmount("Consumer Loan", new BigDecimal("1000"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().loanProductName()).isEqualTo("Consumer Loan");
+    }
+
+    @Test
+    void getApprovedTotalsPerProduct_mapsQueryRowsToResponses() {
+        // ProductTotalAmount is an interface (Spring Data fills it), so in a unit test we mock one row
+        ProductTotalAmount row = mock(ProductTotalAmount.class);
+        when(row.getProductName()).thenReturn("Consumer Loan");
+        when(row.getTotalAmount()).thenReturn(new BigDecimal("12000.00"));
+        when(loanApplicationRepository.findTotalApprovedAmountPerProduct()).thenReturn(List.of(row));
+
+        List<ProductTotalResponse> result = loanApplicationService.getApprovedTotalsPerProduct();
+
+        assertThat(result).containsExactly(new ProductTotalResponse("Consumer Loan", new BigDecimal("12000.00")));
     }
 
     // ---------- helper ----------

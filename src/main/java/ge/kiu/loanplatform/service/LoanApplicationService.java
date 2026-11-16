@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.service;
 
 import ge.kiu.loanplatform.dto.LoanApplicationRequest;
 import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.dto.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.RejectRequest;
 import ge.kiu.loanplatform.entity.ApplicationStatus;
 import ge.kiu.loanplatform.entity.Customer;
@@ -19,6 +20,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -72,6 +76,34 @@ public class LoanApplicationService {
     @Transactional(readOnly = true)
     public LoanApplicationResponse getById(Long id) {
         return LoanApplicationResponse.from(findApplication(id));
+    }
+
+    // All applications of one customer that have the given status (method-name query)
+    @Transactional(readOnly = true)
+    public List<LoanApplicationResponse> getByCustomerAndStatus(Long customerId, ApplicationStatus status) {
+        // without this check an unknown customer would get an empty list instead of a clear 404
+        if (!customerRepository.existsById(customerId)) {
+            throw new ResourceNotFoundException("Customer with id " + customerId + " not found");
+        }
+        return loanApplicationRepository.findByCustomerIdAndStatus(customerId, status).stream()
+                .map(LoanApplicationResponse::from)
+                .toList();
+    }
+
+    // Applications of one product (by name) with an amount above the given value (@Query with JOIN)
+    @Transactional(readOnly = true)
+    public List<LoanApplicationResponse> searchByProductAndAmount(String productName, BigDecimal amountAbove) {
+        return loanApplicationRepository.findByProductNameAndAmountGreaterThan(productName, amountAbove).stream()
+                .map(LoanApplicationResponse::from)
+                .toList();
+    }
+
+    // Report: total approved amount per product (@Query with SUM + GROUP BY)
+    @Transactional(readOnly = true)
+    public List<ProductTotalResponse> getApprovedTotalsPerProduct() {
+        return loanApplicationRepository.findTotalApprovedAmountPerProduct().stream()
+                .map(ProductTotalResponse::from)
+                .toList();
     }
 
     @Transactional

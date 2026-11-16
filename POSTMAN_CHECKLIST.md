@@ -84,3 +84,28 @@ Postman: Body → form-data. Key `file` with type **File**, key `documentTypeId`
 | 42 | `DELETE /api/applications/1` | – | 204, its files are removed from `uploads/` |
 | 43 | `GET /api/applications/1` | – | 404 |
 | 44 | `GET /api/applications?status=APPROVED` | – | 200, only application 2 |
+
+## Queries and report
+
+These three endpoints use the repository query methods (one method-name query, two `@Query` methods).
+
+| # | Request | Body | Expected |
+|---|---------|------|----------|
+| 45 | `GET /api/customers/1/applications?status=APPROVED` | – | 200, only application 2 |
+| 46 | `GET /api/customers/1/applications` | – | 400, missing parameter `status` |
+| 47 | `GET /api/customers/1/applications?status=WRONG` | – | 400, invalid value for `status` |
+| 48 | `GET /api/customers/99/applications?status=APPROVED` | – | 404, customer not found |
+| 49 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=1000` | – | 200, only application 2 (7000 on Consumer Loan) |
+| 50 | `GET /api/applications/search?productName=Consumer Loan` | – | 400, missing parameter `amountAbove` |
+| 51 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=-1` | – | 400, `fieldErrors` for amountAbove |
+| 52 | `GET /api/applications/reports/approved-totals` | – | 200, one row: `Consumer Loan`, `totalApprovedAmount` 7000.00 |
+
+## Extra validation
+
+| # | Request | Body | Expected |
+|---|---------|------|----------|
+| 53 | `GET /api/customers/-1` | – | 400, `fieldErrors.id` = "Id must be a positive number" |
+| 54 | `POST /api/customers` | `{"fullName":"<script>alert(1)</script>","email":"safe@mail.com","personalNumber":"01234567891"}` | 400, `fieldErrors` for fullName |
+| 55 | `POST /api/customers` | `{"fullName":"Ana Beridze","email":"ana@mail","personalNumber":"01234567891","phone":"call me"}` | 400, `fieldErrors` for email and phone |
+| 56 | `POST /api/applications` | `{"customerId":-1,"loanProductId":0,"amount":5000.999,"termMonths":12}` | 400, `fieldErrors` for customerId, loanProductId, amount |
+| 57 | `PUT /api/applications/2/reject` | `{"decisionComment":"<b>no</b>"}` | 400, `fieldErrors` for decisionComment |
