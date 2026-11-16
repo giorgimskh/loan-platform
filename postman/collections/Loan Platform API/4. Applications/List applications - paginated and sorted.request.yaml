@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications?page=0&size=2&sort=amount,desc"
+method: GET
+queryParams:
+  page: "0"
+  size: "2"
+  sort: amount,desc
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Page has at most 2 items, highest amount first", function () {
+          const body = pm.response.json();
+          pm.expect(body.content.length).to.be.at.most(2);
+          pm.expect(body.page.size).to.eql(2);
+          pm.expect(body.page.totalElements).to.be.at.least(3);
+          pm.expect(body.content[0].amount).to.be.at.least(body.content[1].amount);
+      });
+    language: text/javascript
+order: 14000

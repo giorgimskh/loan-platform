@@ -7,6 +7,8 @@ import ge.kiu.loanplatform.exception.BusinessRuleException;
 import ge.kiu.loanplatform.exception.ConflictException;
 import ge.kiu.loanplatform.exception.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.LoanProductService;
+import ge.kiu.loanplatform.dto.PaymentCalculationResponse;
+import ge.kiu.loanplatform.service.LoanApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -46,6 +48,60 @@ class LoanProductControllerTest {
 
     @MockitoBean
     private LoanProductService loanProductService;
+    @MockitoBean
+    private LoanApplicationService loanApplicationService; // used by the payment calculator endpoint
+
+    // ---------- payment calculator ----------
+
+    @Test
+    void calculate_returns200WithThePayment() throws Exception {
+        when(loanApplicationService.calculate(1L, new BigDecimal("5000"), 12))
+                .thenReturn(new PaymentCalculationResponse(new BigDecimal("5000"), new BigDecimal("14.50"), 12,
+                        new BigDecimal("450.11"), new BigDecimal("5401.36"), new BigDecimal("401.36")));
+
+        mockMvc.perform(get("/api/products/1/calculate").param("amount", "5000").param("termMonths", "12"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.monthlyPayment").value(450.11))
+                .andExpect(jsonPath("$.totalInterest").value(401.36));
+    }
+
+    @Test
+    void calculate_returns400WithFieldErrors_whenParametersAreInvalid() throws Exception {
+        mockMvc.perform(get("/api/products/1/calculate").param("amount", "0").param("termMonths", "500"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.amount").value("Amount must be greater than 0"))
+                .andExpect(jsonPath("$.fieldErrors.termMonths").value("Term must be at most 360 months"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void calculate_returns400_whenAmountIsMissing() throws Exception {
+        mockMvc.perform(get("/api/products/1/calculate").param("termMonths", "12"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Missing required parameter 'amount'"));
+    }
+
+    @Test
+    void calculate_returns400_whenAmountIsOutsideTheProductRange() throws Exception { // rule 1
+        when(loanApplicationService.calculate(1L, new BigDecimal("99"), 12))
+                .thenThrow(new BusinessRuleException("Amount must be between 500.00 and 20000.00 for product Consumer Loan"));
+
+        mockMvc.perform(get("/api/products/1/calculate").param("amount", "99").param("termMonths", "12"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Amount must be between 500.00 and 20000.00 for product Consumer Loan"));
+    }
+
+    @Test
+    void getById_returns200_whenProductExists() throws Exception {
+        when(loanProductService.getById(1L)).thenReturn(response());
+
+        mockMvc.perform(get("/api/products/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Consumer Loan"));
+    }
+
+    // ---------- products ----------
 
     @Test
     void getAll_returns200WithProducts() throws Exception {

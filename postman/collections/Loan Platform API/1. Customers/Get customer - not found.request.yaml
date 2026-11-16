@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/api/customers/999999"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 404", function () {
+          pm.response.to.have.status(404);
+      });
+      pm.test("Error message is returned", function () {
+          pm.expect(pm.response.json().message).to.include("not found");
+      });
+    language: text/javascript
+order: 15000

@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/api/products/{{productId}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("The product is returned", function () {
+          pm.expect(pm.response.json().name).to.eql(pm.collectionVariables.get("productName"));
+      });
+    language: text/javascript
+order: 9000

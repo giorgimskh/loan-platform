@@ -2,20 +2,35 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Customers')}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('customers')}"></header>
+<header th:replace="~{fragments :: topbar('customers')}"></header>
 
 <main>
     <div th:replace="~{fragments :: flash}"></div>
 
-    <h1>Customers <span class="count" th:text="${#lists.size(customers)}">3</span></h1>
+    <div class="title-row">
+        <div>
+            <!-- "page" is a Spring Data Page: totalElements counts every match, not only this page -->
+            <h1>Customers <span class="count" th:text="${page.totalElements}">3</span></h1>
+            <p class="lead">Everyone who can apply for a loan.</p>
+        </div>
+    </div>
 
     <!-- Two columns: the list on the left, the registration form on the right (it stays visible while scrolling) -->
     <div class="split">
 
         <section aria-label="Registered customers">
+            <!-- A GET form: the search text goes into the URL as ?search=..., so the result can be bookmarked -->
+            <form class="searchbar" th:action="@{/ui/customers}" method="get" role="search">
+                <label class="visually-hidden" for="search">Search customers</label>
+                <input id="search" type="search" name="search" th:value="${search}" maxlength="100"
+                       placeholder="Search by name, email or personal number">
+                <button type="submit">Search</button>
+                <a th:if="${!#strings.isEmpty(search)}" th:href="@{/ui/customers}">Clear</a>
+            </form>
+
             <!-- One card per customer -->
-            <ul class="people" th:if="${!#lists.isEmpty(customers)}">
-                <li th:each="c : ${customers}">
+            <ul class="people" th:if="${!page.isEmpty()}">
+                <li th:each="c : ${page.content}">
                     <!-- the first letter of the name as a simple avatar -->
                     <span class="avatar" aria-hidden="true" th:text="${#strings.substring(c.fullName, 0, 1)}">A</span>
 
@@ -46,16 +61,34 @@
                         </p>
                     </div>
 
-                    <a class="button quiet" th:href="@{/ui/applications/new(customerId=${c.id})}">Start application</a>
+                    <div class="person-actions">
+                        <a class="button quiet" th:href="@{/ui/applications/new(customerId=${c.id})}">Start application</a>
+                        <div class="row-actions">
+                            <a th:href="@{/ui/customers/{id}/edit(id=${c.id})}" th:attr="aria-label='Edit ' + ${c.fullName}">Edit</a>
+                            <!-- an HTML form cannot send DELETE, so the website uses POST .../delete -->
+                            <form th:action="@{/ui/customers/{id}/delete(id=${c.id})}" method="post"
+                                  onsubmit="return confirm('Delete this customer? This cannot be undone.')">
+                                <button type="submit" class="link danger" th:attr="aria-label='Delete ' + ${c.fullName}">Delete</button>
+                            </form>
+                        </div>
+                    </div>
                 </li>
             </ul>
 
-            <div class="empty-state" th:if="${#lists.isEmpty(customers)}">
-                <p>No customers yet. Register the first one with the form on this page.</p>
+            <div class="empty-state" th:if="${page.isEmpty()}">
+                <p th:if="${#strings.isEmpty(search)}">No customers yet. Register the first one with the form on this page.</p>
+                <p th:if="${!#strings.isEmpty(search)}" th:text="'No customer matches &quot;' + ${search} + '&quot;. Try a shorter text.'">No match.</p>
             </div>
+
+            <!-- Pager: only shown when there is more than one page. The search text is kept in every link. -->
+            <nav class="pager" aria-label="Pages" th:if="${page.totalPages > 1}">
+                <a th:if="${page.hasPrevious()}" th:href="@{/ui/customers(search=${search}, page=${page.number - 1})}">Previous</a>
+                <span th:text="'Page ' + ${page.number + 1} + ' of ' + ${page.totalPages}">Page 1 of 3</span>
+                <a th:if="${page.hasNext()}" th:href="@{/ui/customers(search=${search}, page=${page.number + 1})}">Next</a>
+            </nav>
         </section>
 
-        <aside class="panel sticky" aria-labelledby="register-title">
+        <aside class="card sticky" aria-labelledby="register-title">
             <h2 id="register-title">Register a customer</h2>
 
             <!-- The service refused the request, e.g. the email is already used -->

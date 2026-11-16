@@ -2,18 +2,21 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Application ' + ${loanApplication.id})}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('applications')}"></header>
+<header th:replace="~{fragments :: topbar('applications')}"></header>
 
 <main>
     <p class="back"><a th:href="@{/ui/applications}">Back to applications</a></p>
 
     <div th:replace="~{fragments :: flash}"></div>
 
-    <!-- The file card: the facts of the application with its status "stamped" on it -->
-    <section class="file">
+    <!-- The header card: the facts of the application with its status next to the title -->
+    <section class="card file">
         <div class="file-head">
             <h1 th:text="'Application No. ' + ${loanApplication.id}">Application No. 1</h1>
-            <span th:class="'stamp ' + ${loanApplication.status}" th:text="${loanApplication.status}">SUBMITTED</span>
+            <span th:replace="~{fragments :: status(${loanApplication.status})}"></span>
+            <!-- only a SUBMITTED application can be edited (rule 4) -->
+            <a class="button quiet edit-link" th:if="${loanApplication.status.name() == 'SUBMITTED'}"
+               th:href="@{/ui/applications/{id}/edit(id=${loanApplication.id})}">Edit application</a>
         </div>
 
         <dl class="facts">
@@ -44,108 +47,193 @@
         </dl>
     </section>
 
-    <!-- Decision: offered while the application is SUBMITTED (rule 4) -->
-    <section th:if="${loanApplication.status.name() == 'SUBMITTED'}" aria-labelledby="decision-title">
-        <h2 id="decision-title">Decide</h2>
-        <div class="decision">
-            <form class="panel" th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
-                <h3>Approve</h3>
-                <p class="lead">The customer gets the loan. This cannot be changed afterwards.</p>
-                <button type="submit">Approve application</button>
-            </form>
+    <!-- Two columns: the work (decision, documents, schedule) on the left, the history on the right -->
+    <div class="detail">
+        <div class="detail-main">
 
-            <form class="panel" th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post" novalidate>
-                <h3>Reject</h3>
-                <div class="field">
-                    <label for="decisionComment">Reason, shown on the application</label>
-                    <input id="decisionComment" type="text" name="decisionComment" autocomplete="off" maxlength="255">
+            <!-- Decision (rule 4): an application can get any decision except the one it already has.
+                 So "Approve" is hidden when it is APPROVED, and "Reject" is hidden when it is REJECTED. -->
+            <section class="card" aria-labelledby="decision-title">
+                <h2 id="decision-title"
+                    th:text="${loanApplication.status.name() == 'SUBMITTED'} ? 'Decide' : 'Change the decision'">Decide</h2>
+                <p class="lead" th:if="${loanApplication.status.name() == 'APPROVED'}">
+                    This application is approved. If that was wrong, it can still be rejected.
+                </p>
+                <p class="lead" th:if="${loanApplication.status.name() == 'REJECTED'}">
+                    This application is rejected. If that was wrong, it can still be approved.
+                </p>
+
+                <!-- Rule 7: every document the product requires must be uploaded before approval.
+                     requiredDocuments = what the product asks for, missingDocuments = what is not uploaded yet. -->
+                <div class="checklist-box" th:if="${!#lists.isEmpty(requiredDocuments)}">
+                    <h3>Required documents</h3>
+                    <ul class="checklist">
+                        <li th:each="d : ${requiredDocuments}"
+                            th:classappend="${missingDocuments.contains(d)} ? 'missing' : 'done'">
+                            <span th:text="${d.name}">ID Card</span>
+                            <span class="check-state" th:text="${missingDocuments.contains(d)} ? 'Missing' : 'Uploaded'">Uploaded</span>
+                        </li>
+                    </ul>
+                    <p class="help" th:if="${!#lists.isEmpty(missingDocuments) and loanApplication.status.name() != 'APPROVED'}">
+                        Approval is refused until the missing documents are uploaded below.
+                    </p>
                 </div>
-                <button type="submit" class="danger">Reject application</button>
-            </form>
+
+                <div class="decision">
+                    <form class="decision-option" th:if="${loanApplication.status.name() != 'APPROVED'}"
+                          th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
+                        <h3>Approve</h3>
+                        <p class="help">The customer gets the loan. A reason for rejection, if there is one, is removed.</p>
+                        <button type="submit">Approve application</button>
+                    </form>
+
+                    <form class="decision-option" th:if="${loanApplication.status.name() != 'REJECTED'}"
+                          th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post" novalidate>
+                        <h3>Reject</h3>
+                        <div class="field">
+                            <label for="decisionComment">Reason, shown on the application</label>
+                            <input id="decisionComment" type="text" name="decisionComment" autocomplete="off" maxlength="255">
+                        </div>
+                        <button type="submit" class="danger">Reject application</button>
+                    </form>
+                </div>
+
+                <!-- Cancelling is only possible before a decision.
+                     confirm() asks before deleting; "Cancel" in the dialog stops the form from being sent. -->
+                <form class="cancel-line" th:if="${loanApplication.status.name() == 'SUBMITTED'}"
+                      th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post"
+                      onsubmit="return confirm('Cancel this application? It and its documents are deleted.')">
+                    <span>Submitted by mistake?</span>
+                    <button type="submit" class="link danger">Cancel this application</button>
+                </form>
+                <p class="cancel-line" th:if="${loanApplication.status.name() != 'SUBMITTED'}">
+                    A decided application can no longer be edited or cancelled.
+                </p>
+            </section>
+
+            <section class="card" aria-labelledby="documents-title">
+                <h2 id="documents-title">Documents
+                    <span class="count" th:text="${#lists.size(loanApplication.documents)}">2</span>
+                </h2>
+
+                <table class="table inner" th:if="${!#lists.isEmpty(loanApplication.documents)}">
+                    <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Document type</th>
+                        <th>Uploaded on</th>
+                        <th><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="d : ${loanApplication.documents}">
+                        <td th:text="${d.originalFileName}">id-card.pdf</td>
+                        <td th:text="${d.documentTypeName}">ID Card</td>
+                        <td class="muted" th:text="${#temporals.format(d.uploadedAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:05</td>
+                        <td class="row-actions">
+                            <!-- a plain link to the REST endpoint: the browser saves the file -->
+                            <a th:href="@{/api/documents/{id}/download(id=${d.id})}"
+                               th:attr="aria-label='Download ' + ${d.originalFileName}">Download</a>
+                            <!-- documents can only be deleted before a decision -->
+                            <form th:if="${loanApplication.status.name() == 'SUBMITTED'}"
+                                  th:action="@{/ui/documents/{id}/delete(id=${d.id})}" method="post"
+                                  onsubmit="return confirm('Delete this document?')">
+                                <button type="submit" class="link danger"
+                                        th:attr="aria-label='Delete ' + ${d.originalFileName}">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <p class="empty-note" th:if="${#lists.isEmpty(loanApplication.documents)}">No documents uploaded yet.</p>
+
+                <!-- enctype="multipart/form-data" is required for a file upload -->
+                <form class="upload" th:action="@{/ui/applications/{id}/documents(id=${loanApplication.id})}" method="post"
+                      enctype="multipart/form-data" th:if="${!#lists.isEmpty(documentTypes)}">
+                    <h3>Upload a document</h3>
+                    <div class="pair">
+                        <div class="field">
+                            <label for="file">File</label>
+                            <input id="file" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="file-help">
+                            <p class="help" id="file-help">PDF, JPG or PNG, at most 5 MB</p>
+                        </div>
+                        <div class="field">
+                            <label for="documentTypeId">Document type</label>
+                            <select id="documentTypeId" name="documentTypeId">
+                                <option th:each="d : ${documentTypes}" th:value="${d.id}" th:text="${d.name}">ID Card</option>
+                            </select>
+                            <p class="help">What this file is</p>
+                        </div>
+                    </div>
+                    <button type="submit" class="quiet">Upload document</button>
+                </form>
+                <p class="empty-note" th:if="${#lists.isEmpty(documentTypes)}">
+                    No document types exist, so nothing can be uploaded.
+                    <a th:href="@{/ui/document-types}">Add a document type</a> first.
+                </p>
+            </section>
+
+            <!-- "schedule" (RepaymentScheduleResponse) is only in the Model when the application is APPROVED -->
+            <section class="card" aria-labelledby="schedule-title" th:if="${schedule != null}">
+                <h2 id="schedule-title">Repayment schedule</h2>
+                <p class="lead" th:text="'Equal monthly payments at ' + ${schedule.summary.interestRate} + '% per year.'">Equal monthly payments at 14.50% per year.</p>
+
+                <dl class="totals wide">
+                    <div>
+                        <dt>Monthly payment</dt>
+                        <dd th:text="${#numbers.formatDecimal(schedule.summary.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</dd>
+                    </div>
+                    <div>
+                        <dt>Total interest</dt>
+                        <dd th:text="${#numbers.formatDecimal(schedule.summary.totalInterest, 1, 'COMMA', 2, 'POINT')}">401.32</dd>
+                    </div>
+                    <div>
+                        <dt>Total to pay back</dt>
+                        <dd th:text="${#numbers.formatDecimal(schedule.summary.totalPayment, 1, 'COMMA', 2, 'POINT')}">5,401.32</dd>
+                    </div>
+                </dl>
+
+                <!-- a long schedule (e.g. 240 months) scrolls inside this box instead of making the page endless -->
+                <div class="scroll-box" tabindex="0" role="region" aria-labelledby="schedule-title">
+                    <table class="table inner">
+                        <thead>
+                        <tr>
+                            <th class="number">Month</th>
+                            <th class="number">Payment</th>
+                            <th class="number">Interest</th>
+                            <th class="number">Principal</th>
+                            <th class="number">Balance after</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="p : ${schedule.payments}">
+                            <td class="number" th:text="${p.month}">1</td>
+                            <td class="number" th:text="${#numbers.formatDecimal(p.payment, 1, 'COMMA', 2, 'POINT')}">450.11</td>
+                            <td class="number" th:text="${#numbers.formatDecimal(p.interest, 1, 'COMMA', 2, 'POINT')}">60.42</td>
+                            <td class="number" th:text="${#numbers.formatDecimal(p.principal, 1, 'COMMA', 2, 'POINT')}">389.69</td>
+                            <td class="number" th:text="${#numbers.formatDecimal(p.remainingBalance, 1, 'COMMA', 2, 'POINT')}">4,610.31</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
 
-        <!-- confirm() asks before deleting; "Cancel" in the dialog stops the form from being sent -->
-        <form class="cancel-line" th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post"
-              onsubmit="return confirm('Cancel this application? It and its documents are deleted.')">
-            <span>Submitted by mistake?</span>
-            <button type="submit" class="link danger">Cancel this application</button>
-        </form>
-    </section>
-
-    <!-- Already decided: explain why there are no buttons, but keep a way to demonstrate rule 4 -->
-    <section th:if="${loanApplication.status.name() != 'SUBMITTED'}">
-        <h2>Decision</h2>
-        <p class="lead"
-           th:text="'This application is ' + ${#strings.toLowerCase(loanApplication.status)} + '. A decided application cannot be approved, rejected or cancelled again.'">
-            This application is approved.
-        </p>
-        <details class="try">
-            <summary>Try it anyway (shows business rule 4)</summary>
-            <div class="try-actions">
-                <form th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
-                    <button type="submit" class="quiet">Approve</button>
-                </form>
-                <form th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post">
-                    <input type="hidden" name="decisionComment" value="Trying rule 4">
-                    <button type="submit" class="quiet">Reject</button>
-                </form>
-                <form th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post">
-                    <button type="submit" class="quiet">Cancel</button>
-                </form>
-            </div>
-        </details>
-    </section>
-
-    <section aria-labelledby="documents-title">
-        <h2 id="documents-title">Documents
-            <span class="count" th:text="${#lists.size(loanApplication.documents)}">2</span>
-        </h2>
-
-        <table class="ledger" th:if="${!#lists.isEmpty(loanApplication.documents)}">
-            <thead>
-            <tr>
-                <th>File</th>
-                <th>Document type</th>
-                <th>Uploaded on</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="d : ${loanApplication.documents}">
-                <td th:text="${d.originalFileName}">id-card.pdf</td>
-                <td th:text="${d.documentTypeName}">ID Card</td>
-                <td th:text="${#temporals.format(d.uploadedAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:05</td>
-            </tr>
-            </tbody>
-        </table>
-        <p class="empty-state" th:if="${#lists.isEmpty(loanApplication.documents)}">No documents uploaded yet.</p>
-
-        <!-- enctype="multipart/form-data" is required for a file upload -->
-        <form class="panel upload" th:action="@{/ui/applications/{id}/documents(id=${loanApplication.id})}" method="post"
-              enctype="multipart/form-data">
-            <h3>Upload a document</h3>
-            <div class="field">
-                <label for="file">File</label>
-                <input id="file" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="file-help">
-                <p class="help" id="file-help">PDF, JPG or PNG, at most 5 MB</p>
-            </div>
-
-            <!-- If the product lists required documents, offer them as choices; otherwise ask for the id -->
-            <div class="field" th:if="${requiredDocuments != null and !#lists.isEmpty(requiredDocuments)}">
-                <label for="documentTypeId">Document type</label>
-                <select id="documentTypeId" name="documentTypeId">
-                    <option th:each="d : ${requiredDocuments}" th:value="${d.id}" th:text="${d.name}">ID Card</option>
-                </select>
-                <p class="help">The documents this product requires</p>
-            </div>
-            <div class="field" th:if="${requiredDocuments == null or #lists.isEmpty(requiredDocuments)}">
-                <label for="documentTypeIdNumber">Document type id</label>
-                <input id="documentTypeIdNumber" type="number" name="documentTypeId" value="1" min="1" required>
-                <p class="help">This product requires no documents, so enter any existing type id</p>
-            </div>
-
-            <button type="submit" class="quiet">Upload document</button>
-        </form>
-    </section>
+        <!-- History: one line per status change, oldest first (the StatusChange entity) -->
+        <aside class="card detail-side" aria-labelledby="history-title">
+            <h2 id="history-title">History</h2>
+            <ol class="timeline" th:if="${!#lists.isEmpty(history)}">
+                <li th:each="h : ${history}" th:class="${h.status}">
+                    <span class="timeline-status" th:text="${#strings.capitalize(#strings.toLowerCase(h.status))}">Submitted</span>
+                    <span class="timeline-time" th:text="${#temporals.format(h.changedAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</span>
+                    <span class="timeline-comment" th:if="${h.decisionComment != null}" th:text="${h.decisionComment}">Income too low</span>
+                </li>
+            </ol>
+            <p class="empty-note" th:if="${#lists.isEmpty(history)}">
+                No history was recorded for this application: it was created before the history existed.
+            </p>
+        </aside>
+    </div>
 </main>
 </body>
 </html>

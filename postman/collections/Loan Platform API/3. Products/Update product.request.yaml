@@ -1,0 +1,31 @@
+$kind: http-request
+description: Keeps the same name, changes the limits to amount 1000-60000 and term 6-72 months.
+url: "{{baseUrl}}/api/products/{{productId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{productName}}",
+      "interestRate": 12,
+      "minAmount": 1000,
+      "maxAmount": 60000,
+      "minTermMonths": 6,
+      "maxTermMonths": 72,
+      "requiredDocumentTypeIds": [1]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("New values are returned", function () {
+          const body = pm.response.json();
+          pm.expect(body.maxTermMonths).to.eql(72);
+          pm.expect(body.requiredDocuments).to.have.lengthOf(1);
+      });
+    language: text/javascript
+order: 8000

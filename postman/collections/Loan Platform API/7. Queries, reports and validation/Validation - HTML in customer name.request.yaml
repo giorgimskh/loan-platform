@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/api/customers"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "<script>alert(1)</script>",
+      "email": "safe@mail.com",
+      "personalNumber": "01234567890"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("Field error for fullName", function () {
+          pm.expect(pm.response.json().fieldErrors).to.have.property("fullName");
+      });
+    language: text/javascript
+order: 13000

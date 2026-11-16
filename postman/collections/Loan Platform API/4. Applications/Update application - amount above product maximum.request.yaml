@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/{{applicationId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "loanProductId": {{productId}},
+      "amount": 999999,
+      "termMonths": 18
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("Error message is returned", function () {
+          pm.expect(pm.response.json().message).to.include("Amount must be between");
+      });
+    language: text/javascript
+order: 12000

@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/api/products/{{productId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 409", function () {
+          pm.response.to.have.status(409);
+      });
+      pm.test("Error message is returned", function () {
+          pm.expect(pm.response.json().message).to.include("has applications");
+      });
+    language: text/javascript
+order: 18000

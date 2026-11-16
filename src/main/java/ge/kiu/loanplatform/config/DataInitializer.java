@@ -12,7 +12,8 @@ import java.math.BigDecimal;
 import java.util.Set;
 
 // Inserts sample data on startup, only when the tables are still empty.
-// Document types have no endpoint of their own, so this is where they come from.
+// The only document a loan needs here is the customer's ID. More types can be added
+// later with POST /api/document-types.
 @Configuration
 public class DataInitializer {
 
@@ -20,18 +21,16 @@ public class DataInitializer {
     public CommandLineRunner loadSampleData(DocumentTypeRepository documentTypeRepository,
                                             LoanProductRepository loanProductRepository) {
         return args -> {
-            if (documentTypeRepository.count() > 0) {
+            if (documentTypeRepository.count() > 0 || loanProductRepository.count() > 0) {
                 return; // data already loaded on an earlier start
             }
 
             DocumentType idCard = documentTypeRepository.save(documentType("ID Card"));
-            DocumentType salaryCertificate = documentTypeRepository.save(documentType("Salary Certificate"));
-            DocumentType bankStatement = documentTypeRepository.save(documentType("Bank Statement"));
 
             loanProductRepository.save(product("Consumer Loan", "14.50", "500.00", "20000.00", 3, 48,
-                    Set.of(idCard, salaryCertificate)));
+                    Set.of(idCard)));
             loanProductRepository.save(product("Mortgage", "9.75", "20000.00", "500000.00", 60, 240,
-                    Set.of(idCard, salaryCertificate, bankStatement)));
+                    Set.of(idCard)));
         };
     }
 

@@ -2,13 +2,16 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Applications')}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('applications')}"></header>
+<header th:replace="~{fragments :: topbar('applications')}"></header>
 
 <main>
     <div th:replace="~{fragments :: flash}"></div>
 
     <div class="title-row">
-        <h1>Applications <span class="count" th:text="${page.totalElements}">12</span></h1>
+        <div>
+            <h1>Applications <span class="count" th:text="${page.totalElements}">12</span></h1>
+            <p class="lead">Open the Actions menu of a row to edit, approve, reject or cancel it.</p>
+        </div>
         <a class="button" th:href="@{/ui/applications/new}">New application</a>
     </div>
 
@@ -24,7 +27,7 @@
     <!-- "page" is a Spring Data Page: page.content is the list of rows on this page -->
     <!-- th:block is an invisible wrapper: it only carries the th:if -->
     <th:block th:if="${!page.isEmpty()}">
-        <table th:replace="~{fragments :: applicationTable(${page.content})}"></table>
+        <div th:replace="~{fragments :: applicationTable(${page.content})}"></div>
     </th:block>
 
     <div class="empty-state" th:if="${page.isEmpty()}">
@@ -42,7 +45,7 @@
         <a th:if="${page.hasNext()}" th:href="@{/ui/applications(status=${status}, page=${page.number + 1})}">Next</a>
     </nav>
 
-    <section class="panel search" aria-labelledby="search-title">
+    <section class="card search" aria-labelledby="search-title">
         <h2 id="search-title">Find large applications for one product</h2>
         <form th:action="@{/ui/applications/search}" method="get">
             <div class="field">

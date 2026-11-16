@@ -6,12 +6,18 @@ import ge.kiu.loanplatform.entity.Customer;
 import ge.kiu.loanplatform.exception.ConflictException;
 import ge.kiu.loanplatform.exception.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.CustomerRepository;
+import ge.kiu.loanplatform.repository.LoanApplicationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,6 +33,8 @@ class CustomerServiceTest {
 
     @Mock
     private CustomerRepository customerRepository;
+    @Mock
+    private LoanApplicationRepository loanApplicationRepository;
 
     @InjectMocks
     private CustomerService customerService;
@@ -75,5 +83,89 @@ class CustomerServiceTest {
         assertThatThrownBy(() -> customerService.getById(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("99");
+    }
+
+    // ---------- list and search ----------
+
+    @Test
+    void getAll_returnsEveryCustomer_whenSearchIsEmpty() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(customerRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(existingCustomer())));
+
+        Page<CustomerResponse> page = customerService.getAll("  ", pageable);
+
+        assertThat(page.getContent()).extracting(CustomerResponse::fullName).containsExactly("Ana Beridze");
+        verify(customerRepository, never()).search(any(), any());
+    }
+
+    @Test
+    void getAll_usesTheSearchQuery_andTrimsTheText() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(customerRepository.search("ana", pageable)).thenReturn(new PageImpl<>(List.of(existingCustomer())));
+
+        Page<CustomerResponse> page = customerService.getAll(" ana ", pageable);
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+    }
+
+    // ---------- update ----------
+
+    @Test
+    void update_changesTheFields_andAllowsKeepingTheSameEmail() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(existingCustomer()));
+
+        CustomerResponse response = customerService.update(1L,
+                new CustomerRequest("Ana Kapanadze", "ana@mail.com", "01234567890", null));
+
+        assertThat(response.fullName()).isEqualTo("Ana Kapanadze");
+        assertThat(response.phone()).isNull();
+        // email and personal number did not change, so the "already exists" checks must not run
+        verify(customerRepository, never()).existsByEmail(any());
+        verify(customerRepository, never()).existsByPersonalNumber(any());
+    }
+
+    @Test
+    void update_throwsConflict_whenNewEmailBelongsToAnotherCustomer() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(existingCustomer()));
+        when(customerRepository.existsByEmail("nino@mail.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> customerService.update(1L,
+                new CustomerRequest("Ana Beridze", "nino@mail.com", "01234567890", null)))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    // ---------- delete ----------
+
+    @Test
+    void delete_removesTheCustomer_whenThereAreNoApplications() {
+        Customer customer = existingCustomer();
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(loanApplicationRepository.existsByCustomerId(1L)).thenReturn(false);
+
+        customerService.delete(1L);
+
+        verify(customerRepository).delete(customer);
+    }
+
+    @Test
+    void delete_throwsConflict_whenCustomerHasApplications() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(existingCustomer()));
+        when(loanApplicationRepository.existsByCustomerId(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> customerService.delete(1L))
+                .isInstanceOf(ConflictException.class);
+        verify(customerRepository, never()).delete(any());
+    }
+
+    // ---------- helper ----------
+
+    private Customer existingCustomer() {
+        Customer customer = new Customer();
+        customer.setId(1L);
+        customer.setFullName("Ana Beridze");
+        customer.setEmail("ana@mail.com");
+        customer.setPersonalNumber("01234567890");
+        customer.setPhone("555123456");
+        return customer;
     }
 }

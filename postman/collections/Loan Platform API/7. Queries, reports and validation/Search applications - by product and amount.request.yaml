@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/search?productName={{productName}}&amountAbove=1000"
+method: GET
+queryParams:
+  productName: "{{productName}}"
+  amountAbove: "1000"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Every result is for the product and above the amount", function () {
+          const list = pm.response.json();
+          pm.expect(list.length).to.be.at.least(1);
+          list.forEach(function (a) {
+              pm.expect(a.loanProductName).to.eql(pm.collectionVariables.get("productName"));
+              pm.expect(a.amount).to.be.above(1000);
+          });
+      });
+    language: text/javascript
+order: 6000

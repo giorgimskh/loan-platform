@@ -1,0 +1,28 @@
+$kind: http-request
+url: "{{baseUrl}}/api/customers"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "Temp Customer",
+      "email": "temp{{email}}",
+      "personalNumber": "{{tempPersonalNumber}}"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // a second unique personal number: the first one with its digits reversed
+      const first = pm.collectionVariables.get("personalNumber");
+      pm.collectionVariables.set("tempPersonalNumber", first.split("").reverse().join(""));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set("tempCustomerId", pm.response.json().id);
+    language: text/javascript
+order: 12000

@@ -24,6 +24,20 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     // Method-name query: used before deleting a product, so we can return a clear 409 instead of a DB error
     boolean existsByLoanProductId(Long loanProductId);
 
+    // Method-name query: used before deleting a customer
+    boolean existsByCustomerId(Long customerId);
+
+    // Method-name query: "SELECT COUNT(*) ... WHERE status = ?", used by the statistics
+    long countByStatus(ApplicationStatus status);
+
+    // @Query (JPQL): the sum of all application amounts. COALESCE turns "no rows" (NULL) into 0.
+    @Query("SELECT COALESCE(SUM(a.amount), 0) FROM LoanApplication a")
+    BigDecimal sumAllAmounts();
+
+    // @Query (JPQL): the sum of the amounts of all applications with one status
+    @Query("SELECT COALESCE(SUM(a.amount), 0) FROM LoanApplication a WHERE a.status = :status")
+    BigDecimal sumAmountsByStatus(@Param("status") ApplicationStatus status);
+
     // @Query (JPQL): total approved amount per product, using SUM + GROUP BY
     @Query("""
             SELECT p.name AS productName, SUM(a.amount) AS totalAmount

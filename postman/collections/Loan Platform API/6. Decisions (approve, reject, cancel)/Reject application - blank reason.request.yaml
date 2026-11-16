@@ -1,0 +1,24 @@
+$kind: http-request
+description: Rule 5.
+url: "{{baseUrl}}/api/applications/{{rejectApplicationId}}/reject"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "decisionComment": "   "
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("fieldErrors lists the invalid fields", function () {
+          const errors = pm.response.json().fieldErrors;
+          pm.expect(errors).to.have.property("decisionComment");
+      });
+    language: text/javascript
+order: 8000

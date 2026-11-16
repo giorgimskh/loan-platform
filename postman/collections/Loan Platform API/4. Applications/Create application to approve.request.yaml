@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "customerId": {{customerId}},
+      "loanProductId": {{productId}},
+      "amount": 7000,
+      "termMonths": 24
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set("approveApplicationId", pm.response.json().id);
+    language: text/javascript
+order: 2000

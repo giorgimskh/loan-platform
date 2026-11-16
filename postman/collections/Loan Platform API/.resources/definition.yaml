@@ -1,0 +1,25 @@
+$kind: collection
+description: |-
+  Requests and tests for the Loan Platform REST API.
+
+  Start the database and the application first (see README.md), then run the folders in order from top to bottom: later requests use ids saved by earlier ones.
+
+  File uploads: in the Postman app, select the files from the postman/files folder for the three upload requests in the 'Documents' folder and the one in the 'Decisions' folder.
+variables:
+  baseUrl: http://localhost:8080
+  email: ""
+  personalNumber: ""
+  productName: ""
+  customerId: ""
+  productId: ""
+  tempProductId: ""
+  applicationId: ""
+  approveApplicationId: ""
+  rejectApplicationId: ""
+  documentTypeName: ""
+  documentTypeId: ""
+  tempDocumentTypeId: ""
+  tempCustomerId: ""
+  tempPersonalNumber: ""
+  documentId: ""
+  approvedDocumentId: ""

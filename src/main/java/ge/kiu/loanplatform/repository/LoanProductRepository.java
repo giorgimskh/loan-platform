@@ -8,4 +8,7 @@ import org.springframework.stereotype.Repository;
 public interface LoanProductRepository extends JpaRepository<LoanProduct, Long> {
 
     boolean existsByName(String name);
+
+    // Method-name query through the ManyToMany: "is there a product whose requiredDocuments contain this id?"
+    boolean existsByRequiredDocumentsId(Long documentTypeId);
 }

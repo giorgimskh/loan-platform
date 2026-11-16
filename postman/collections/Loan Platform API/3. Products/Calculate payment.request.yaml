@@ -1,0 +1,21 @@
+$kind: http-request
+description: Payment calculator. The interest rate (12%) comes from the product. Nothing is saved.
+url: "{{baseUrl}}/api/products/{{productId}}/calculate?amount=5000&termMonths=12"
+method: GET
+queryParams:
+  amount: "5000"
+  termMonths: "12"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("5000 at 12% for 12 months costs 444.24 per month", function () {
+          const body = pm.response.json();
+          pm.expect(body.monthlyPayment).to.eql(444.24);
+          pm.expect(body.totalPayment).to.be.above(5000);
+          pm.expect(body.totalInterest).to.be.closeTo(body.totalPayment - 5000, 0.001);
+      });
+    language: text/javascript
+order: 10000

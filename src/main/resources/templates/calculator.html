@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- The website version of GET /api/products/{id}/calculate -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Payment calculator')}"></head>
+<body>
+<header th:replace="~{fragments :: topbar('calculator')}"></header>
+
+<main>
+    <div class="title-row">
+        <div>
+            <h1>Payment calculator</h1>
+            <p class="lead">See what a loan costs per month before applying. Nothing is saved.</p>
+        </div>
+    </div>
+
+    <div class="columns">
+        <section class="card" aria-labelledby="loan-title">
+            <h2 id="loan-title">The loan</h2>
+
+            <!-- The service refused the request, e.g. the amount is outside the product's range (rule 1) -->
+            <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Amount must be between 500 and 20000</p>
+
+            <!-- method="get": the three values go into the URL, like the query parameters of the REST endpoint -->
+            <form th:action="@{/ui/calculator}" method="get" novalidate>
+                <div class="field" th:classappend="${fieldErrors?.get('loanProductId') != null} ? 'invalid'">
+                    <label for="loanProductId">Loan product</label>
+                    <select id="loanProductId" name="loanProductId" aria-describedby="loanProductId-help">
+                        <option value="">Choose a product</option>
+                        <option th:each="p : ${products}" th:value="${p.id}"
+                                th:text="${p.name} + ' at ' + ${p.interestRate} + '% per year'"
+                                th:selected="${values?.get('loanProductId') == p.id.toString()}">Consumer Loan at 14.50% per year</option>
+                    </select>
+                    <p class="help" id="loanProductId-help" th:text="${fieldErrors?.get('loanProductId')} ?: 'The product decides the interest rate'">Hint</p>
+                </div>
+
+                <div class="pair">
+                    <div th:replace="~{fragments :: field('amount', 'Amount', 'Inside the range of the product')}"></div>
+                    <div th:replace="~{fragments :: field('termMonths', 'Term in months', 'Inside the range of the product')}"></div>
+                </div>
+
+                <button type="submit">Calculate</button>
+            </form>
+        </section>
+
+        <!-- "calculation" is a PaymentCalculationResponse; it only exists after a successful calculation -->
+        <section class="card result" aria-labelledby="result-title" th:if="${calculation != null}">
+            <h2 id="result-title">Monthly payment</h2>
+            <p class="result-value" th:text="${#numbers.formatDecimal(calculation.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</p>
+            <p class="lead" th:text="'for ' + ${calculation.termMonths} + ' months at ' + ${calculation.interestRate} + '% per year'">for 12 months at 14.50% per year</p>
+
+            <!-- one bar split in two: the loan itself and the interest on top of it -->
+            <div class="split-bar" role="img" aria-label="The loan amount compared with the interest">
+                <span class="principal" th:style="'flex-grow:' + ${calculation.amount}"></span>
+                <span class="interest" th:if="${calculation.totalInterest > 0}" th:style="'flex-grow:' + ${calculation.totalInterest}"></span>
+            </div>
+            <dl class="totals">
+                <div>
+                    <dt><span class="dot principal"></span>Loan amount</dt>
+                    <dd th:text="${#numbers.formatDecimal(calculation.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</dd>
+                </div>
+                <div>
+                    <dt><span class="dot interest"></span>Interest</dt>
+                    <dd th:text="${#numbers.formatDecimal(calculation.totalInterest, 1, 'COMMA', 2, 'POINT')}">401.32</dd>
+                </div>
+                <div class="total">
+                    <dt>Total to pay back</dt>
+                    <dd th:text="${#numbers.formatDecimal(calculation.totalPayment, 1, 'COMMA', 2, 'POINT')}">5,401.32</dd>
+                </div>
+            </dl>
+
+            <!-- the three values are passed on, so the application form opens already filled -->
+            <a class="button" th:href="@{/ui/applications/new(loanProductId=${values.get('loanProductId')}, amount=${values.get('amount')}, termMonths=${values.get('termMonths')})}">
+                Apply with these numbers
+            </a>
+        </section>
+
+        <section class="card result placeholder" th:if="${calculation == null}">
+            <h2>Monthly payment</h2>
+            <p class="result-value">0.00</p>
+            <p class="lead">Choose a product, an amount and a term. The monthly payment, the interest and the total appear here.</p>
+        </section>
+    </div>
+</main>
+</body>
+</html>

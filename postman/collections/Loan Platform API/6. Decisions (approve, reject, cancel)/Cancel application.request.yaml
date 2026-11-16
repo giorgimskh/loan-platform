@@ -1,0 +1,12 @@
+$kind: http-request
+description: Deletes the SUBMITTED application together with its documents and uploaded files.
+url: "{{baseUrl}}/api/applications/{{applicationId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 204", function () {
+          pm.response.to.have.status(204);
+      });
+    language: text/javascript
+order: 15000

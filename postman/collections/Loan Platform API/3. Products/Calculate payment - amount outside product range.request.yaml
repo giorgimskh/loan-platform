@@ -1,0 +1,15 @@
+$kind: http-request
+description: "Rule 1: the product lends 1000-60000."
+url: "{{baseUrl}}/api/products/{{productId}}/calculate?amount=50&termMonths=12"
+method: GET
+queryParams:
+  amount: "50"
+  termMonths: "12"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+    language: text/javascript
+order: 11000

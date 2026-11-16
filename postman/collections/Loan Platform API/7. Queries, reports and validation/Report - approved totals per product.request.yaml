@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/reports/approved-totals"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Report has a row for the product with an approved application", function () {
+          const row = pm.response.json().find(function (r) {
+              return r.productName === pm.collectionVariables.get("productName");
+          });
+          pm.expect(row).to.not.be.undefined;
+          pm.expect(row.totalApprovedAmount).to.be.at.least(7000);
+      });
+    language: text/javascript
+order: 9000

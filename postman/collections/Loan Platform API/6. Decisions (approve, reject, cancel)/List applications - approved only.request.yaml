@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications?status=APPROVED&size=50"
+method: GET
+queryParams:
+  status: APPROVED
+  size: "50"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Only APPROVED applications are returned", function () {
+          pm.response.json().content.forEach(a => pm.expect(a.status).to.eql("APPROVED"));
+      });
+    language: text/javascript
+order: 17000

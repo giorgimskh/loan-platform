@@ -3,10 +3,12 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head(${title})}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('applications')}"></header>
+<header th:replace="~{fragments :: topbar('applications')}"></header>
 
 <main>
     <p class="back"><a th:href="@{/ui/applications}">Back to applications</a></p>
+
+    <div th:replace="~{fragments :: flash}"></div>
 
     <h1>
         <span th:text="${title}">Applications</span>
@@ -15,7 +17,7 @@
 
     <!-- th:block is an invisible wrapper: it only carries the th:if -->
     <th:block th:if="${!#lists.isEmpty(applications)}">
-        <table th:replace="~{fragments :: applicationTable(${applications})}"></table>
+        <div th:replace="~{fragments :: applicationTable(${applications})}"></div>
     </th:block>
 
     <div class="empty-state" th:if="${#lists.isEmpty(applications)}">

@@ -1,0 +1,12 @@
+$kind: http-request
+description: This customer has no applications, so it can be deleted.
+url: "{{baseUrl}}/api/customers/{{tempCustomerId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 204", function () {
+          pm.response.to.have.status(204);
+      });
+    language: text/javascript
+order: 13000

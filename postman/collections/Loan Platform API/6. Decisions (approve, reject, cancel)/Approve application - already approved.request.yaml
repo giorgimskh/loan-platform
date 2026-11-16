@@ -1,0 +1,15 @@
+$kind: http-request
+description: Rule 4.
+url: "{{baseUrl}}/api/applications/{{approveApplicationId}}/approve"
+method: PUT
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 409", function () {
+          pm.response.to.have.status(409);
+      });
+      pm.test("Error message is returned", function () {
+          pm.expect(pm.response.json().message).to.include("cannot be approved");
+      });
+    language: text/javascript
+order: 5000

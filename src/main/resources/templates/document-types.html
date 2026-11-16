@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!-- The website version of /api/document-types: list, add and delete the kinds of documents a product can require -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Document types')}"></head>
+<body>
+<header th:replace="~{fragments :: topbar('products')}"></header>
+
+<main>
+    <div th:replace="~{fragments :: flash}"></div>
+
+    <div class="title-row">
+        <div>
+            <h1>Document types <span class="count" th:text="${#lists.size(documentTypes)}">1</span></h1>
+            <p class="lead">The kinds of documents a loan product can require from a customer.</p>
+        </div>
+    </div>
+
+    <nav class="tabs" aria-label="Products section">
+        <a th:href="@{/ui/products}">Products</a>
+        <a class="current" th:href="@{/ui/document-types}">Document types</a>
+    </nav>
+
+    <div class="split">
+        <section aria-label="Existing document types">
+            <div class="table-card" th:if="${!#lists.isEmpty(documentTypes)}">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Document type</th>
+                        <th><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="d : ${documentTypes}">
+                        <td>
+                            <strong th:text="${d.name}">ID Card</strong>
+                            <span class="sub" th:text="'Document type ' + ${d.id}">Document type 1</span>
+                        </td>
+                        <td class="row-actions">
+                            <!-- refused with a red message while a product requires it or a document uses it -->
+                            <form th:action="@{/ui/document-types/{id}/delete(id=${d.id})}" method="post"
+                                  onsubmit="return confirm('Delete this document type?')">
+                                <button type="submit" class="link danger" th:attr="aria-label='Delete ' + ${d.name}">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="empty-state" th:if="${#lists.isEmpty(documentTypes)}">
+                <p>No document types yet. Add one with the form on this page, then tick it on a product.</p>
+            </div>
+        </section>
+
+        <aside class="card sticky" aria-labelledby="add-title">
+            <h2 id="add-title">Add a document type</h2>
+
+            <!-- The service refused the request: the name already exists -->
+            <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Already exists</p>
+
+            <!-- The field name must match the field of DocumentTypeRequest -->
+            <form th:action="@{/ui/document-types}" method="post" novalidate>
+                <div th:replace="~{fragments :: field('name', 'Name', 'Must be unique, for example Passport')}"></div>
+                <button type="submit">Add document type</button>
+            </form>
+        </aside>
+    </div>
+</main>
+</body>
+</html>

@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.service;
 
 import ge.kiu.loanplatform.dto.LoanApplicationRequest;
 import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.dto.LoanApplicationUpdateRequest;
 import ge.kiu.loanplatform.dto.RejectRequest;
 import ge.kiu.loanplatform.entity.ApplicationStatus;
 import ge.kiu.loanplatform.entity.Customer;
@@ -16,11 +17,19 @@ import ge.kiu.loanplatform.repository.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.LoanProductRepository;
 import ge.kiu.loanplatform.repository.ProductTotalAmount;
 import ge.kiu.loanplatform.dto.ProductTotalResponse;
+import ge.kiu.loanplatform.dto.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.PaymentCalculationResponse;
+import ge.kiu.loanplatform.dto.RepaymentScheduleResponse;
+import ge.kiu.loanplatform.dto.StatisticsResponse;
+import ge.kiu.loanplatform.dto.StatusChangeResponse;
+import ge.kiu.loanplatform.entity.DocumentType;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -47,6 +56,9 @@ class LoanApplicationServiceTest {
     private LoanProductRepository loanProductRepository;
     @Mock
     private FileStorageService fileStorageService;
+    // @Spy = the real object, not a fake: the calculator is pure maths, so the tests use it as it is
+    @Spy
+    private LoanCalculatorService loanCalculatorService = new LoanCalculatorService();
 
     @InjectMocks
     private LoanApplicationService loanApplicationService;
@@ -63,6 +75,7 @@ class LoanApplicationServiceTest {
         product = new LoanProduct();
         product.setId(1L);
         product.setName("Consumer Loan");
+        product.setInterestRate(new BigDecimal("14.50"));
         product.setMinAmount(new BigDecimal("500.00"));
         product.setMaxAmount(new BigDecimal("20000.00"));
         product.setMinTermMonths(3);
@@ -171,7 +184,29 @@ class LoanApplicationServiceTest {
     }
 
     @Test
-    void reject_throwsConflict_whenApplicationIsNotSubmitted() {
+    void approve_changesTheDecisionAndRemovesTheReason_whenApplicationWasRejected() { // rule 4
+        LoanApplication rejected = application(ApplicationStatus.REJECTED);
+        rejected.setDecisionComment("Income too low");
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(rejected));
+
+        LoanApplicationResponse response = loanApplicationService.approve(1L);
+
+        assertThat(response.status()).isEqualTo(ApplicationStatus.APPROVED);
+        assertThat(response.decisionComment()).isNull();
+    }
+
+    @Test
+    void reject_changesTheDecision_whenApplicationWasApproved() { // rule 4
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.APPROVED)));
+
+        LoanApplicationResponse response = loanApplicationService.reject(1L, new RejectRequest("Approved by mistake"));
+
+        assertThat(response.status()).isEqualTo(ApplicationStatus.REJECTED);
+        assertThat(response.decisionComment()).isEqualTo("Approved by mistake");
+    }
+
+    @Test
+    void reject_throwsConflict_whenApplicationIsAlreadyRejected() {
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.REJECTED)));
 
         assertThatThrownBy(() -> loanApplicationService.reject(1L, new RejectRequest("Again")))
@@ -207,6 +242,54 @@ class LoanApplicationServiceTest {
         when(loanApplicationRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> loanApplicationService.getById(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---------- update ----------
+
+    @Test
+    void update_changesAmountAndTerm_whenApplicationIsSubmitted() {
+        LoanApplication application = application(ApplicationStatus.SUBMITTED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        LoanApplicationResponse response = loanApplicationService.update(1L,
+                new LoanApplicationUpdateRequest(1L, new BigDecimal("6000"), 24));
+
+        assertThat(response.amount()).isEqualByComparingTo("6000");
+        assertThat(response.termMonths()).isEqualTo(24);
+        assertThat(response.status()).isEqualTo(ApplicationStatus.SUBMITTED);
+    }
+
+    @Test
+    void update_throwsConflict_whenApplicationIsAlreadyApproved() { // rule 4
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.APPROVED)));
+
+        assertThatThrownBy(() -> loanApplicationService.update(1L,
+                new LoanApplicationUpdateRequest(1L, new BigDecimal("6000"), 24)))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("cannot be modified");
+    }
+
+    @Test
+    void update_throwsBusinessRule_andKeepsOldValues_whenAmountIsOutsideProductRange() { // rule 1
+        LoanApplication application = application(ApplicationStatus.SUBMITTED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> loanApplicationService.update(1L,
+                new LoanApplicationUpdateRequest(1L, new BigDecimal("999999"), 24)))
+                .isInstanceOf(BusinessRuleException.class);
+        assertThat(application.getAmount()).isEqualByComparingTo("5000"); // nothing was changed
+    }
+
+    @Test
+    void update_throwsNotFound_whenProductDoesNotExist() {
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.SUBMITTED)));
+        when(loanProductRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> loanApplicationService.update(1L,
+                new LoanApplicationUpdateRequest(99L, new BigDecimal("6000"), 24)))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -259,7 +342,164 @@ class LoanApplicationServiceTest {
         assertThat(result).containsExactly(new ProductTotalResponse("Consumer Loan", new BigDecimal("12000.00")));
     }
 
+    // ---------- required documents (rule 7) ----------
+
+    @Test
+    void approve_throwsConflict_whenARequiredDocumentIsMissing() { // rule 7
+        product.setRequiredDocuments(Set.of(documentType(1L, "ID Card")));
+        LoanApplication application = application(ApplicationStatus.SUBMITTED); // nothing uploaded
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> loanApplicationService.approve(1L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("ID Card");
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
+    }
+
+    @Test
+    void approve_succeeds_whenEveryRequiredDocumentIsUploaded() { // rule 7
+        DocumentType idCard = documentType(1L, "ID Card");
+        product.setRequiredDocuments(Set.of(idCard));
+        LoanApplication application = application(ApplicationStatus.SUBMITTED);
+        application.getDocuments().add(document(idCard));
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        LoanApplicationResponse response = loanApplicationService.approve(1L);
+
+        assertThat(response.status()).isEqualTo(ApplicationStatus.APPROVED);
+    }
+
+    @Test
+    void getMissingDocuments_returnsOnlyTheRequiredTypesThatAreNotUploaded() {
+        DocumentType idCard = documentType(1L, "ID Card");
+        DocumentType passport = documentType(2L, "Passport");
+        product.setRequiredDocuments(Set.of(idCard, passport));
+        LoanApplication application = application(ApplicationStatus.SUBMITTED);
+        application.getDocuments().add(document(idCard));
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        assertThat(loanApplicationService.getMissingDocuments(1L))
+                .containsExactly(new DocumentTypeResponse(2L, "Passport"));
+    }
+
+    // ---------- history ----------
+
+    @Test
+    void history_getsOneLineForEveryStatusChange() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+        // keep the application the service creates, so the next calls can find it
+        LoanApplication[] saved = new LoanApplication[1];
+        when(loanApplicationRepository.save(any(LoanApplication.class))).thenAnswer(invocation -> {
+            saved[0] = invocation.getArgument(0);
+            saved[0].setId(1L);
+            return saved[0];
+        });
+        when(loanApplicationRepository.findById(1L)).thenAnswer(invocation -> Optional.of(saved[0]));
+
+        loanApplicationService.create(new LoanApplicationRequest(1L, 1L, new BigDecimal("5000"), 12));
+        loanApplicationService.reject(1L, new RejectRequest("Income too low"));
+        loanApplicationService.approve(1L);
+
+        List<StatusChangeResponse> history = loanApplicationService.getHistory(1L);
+        assertThat(history).extracting(StatusChangeResponse::status).containsExactly(
+                ApplicationStatus.SUBMITTED, ApplicationStatus.REJECTED, ApplicationStatus.APPROVED);
+        assertThat(history.get(1).decisionComment()).isEqualTo("Income too low");
+        assertThat(history.get(2).decisionComment()).isNull();
+    }
+
+    // ---------- calculator and repayment schedule ----------
+
+    @Test
+    void calculate_returnsThePaymentForTheProductsInterestRate() {
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        PaymentCalculationResponse result = loanApplicationService.calculate(1L, new BigDecimal("5000"), 12);
+
+        assertThat(result.interestRate()).isEqualByComparingTo("14.50");
+        assertThat(result.monthlyPayment()).isEqualByComparingTo("450.11");
+        assertThat(result.totalInterest()).isEqualByComparingTo("401.36");
+    }
+
+    @Test
+    void calculate_throwsBusinessRule_whenAmountIsOutsideTheProductRange() { // rule 1
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> loanApplicationService.calculate(1L, new BigDecimal("99"), 12))
+                .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void calculate_throwsNotFound_whenProductDoesNotExist() {
+        when(loanProductRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> loanApplicationService.calculate(99L, new BigDecimal("5000"), 12))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void getSchedule_returnsOneLinePerMonth_whenApplicationIsApproved() {
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.APPROVED)));
+
+        RepaymentScheduleResponse schedule = loanApplicationService.getSchedule(1L);
+
+        assertThat(schedule.payments()).hasSize(12);
+        assertThat(schedule.summary().monthlyPayment()).isEqualByComparingTo("450.11");
+        assertThat(schedule.payments().getLast().remainingBalance()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void getSchedule_throwsConflict_whenApplicationIsNotApproved() {
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.SUBMITTED)));
+
+        assertThatThrownBy(() -> loanApplicationService.getSchedule(1L))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    // ---------- statistics ----------
+
+    @Test
+    void getStatistics_countsPerStatusAndCalculatesRateAndAverage() {
+        when(loanApplicationRepository.countByStatus(ApplicationStatus.SUBMITTED)).thenReturn(1L);
+        when(loanApplicationRepository.countByStatus(ApplicationStatus.APPROVED)).thenReturn(2L);
+        when(loanApplicationRepository.countByStatus(ApplicationStatus.REJECTED)).thenReturn(1L);
+        when(loanApplicationRepository.sumAllAmounts()).thenReturn(new BigDecimal("18000.00"));
+        when(loanApplicationRepository.sumAmountsByStatus(ApplicationStatus.APPROVED)).thenReturn(new BigDecimal("12000.00"));
+
+        StatisticsResponse statistics = loanApplicationService.getStatistics();
+
+        assertThat(statistics.totalApplications()).isEqualTo(4);
+        assertThat(statistics.approvalRate()).isEqualByComparingTo("66.7");     // 2 of the 3 decided
+        assertThat(statistics.averageAmount()).isEqualByComparingTo("4500.00"); // 18000 / 4
+        assertThat(statistics.totalApprovedAmount()).isEqualByComparingTo("12000.00");
+    }
+
+    @Test
+    void getStatistics_returnsZeros_whenThereAreNoApplications() { // must not divide by zero
+        when(loanApplicationRepository.sumAmountsByStatus(ApplicationStatus.APPROVED)).thenReturn(BigDecimal.ZERO);
+
+        StatisticsResponse statistics = loanApplicationService.getStatistics();
+
+        assertThat(statistics.totalApplications()).isZero();
+        assertThat(statistics.approvalRate()).isEqualByComparingTo("0");
+        assertThat(statistics.averageAmount()).isEqualByComparingTo("0");
+    }
+
     // ---------- helper ----------
+
+    private DocumentType documentType(Long id, String name) {
+        DocumentType documentType = new DocumentType();
+        documentType.setId(id);
+        documentType.setName(name);
+        return documentType;
+    }
+
+    private Document document(DocumentType documentType) {
+        Document document = new Document();
+        document.setOriginalFileName("file.pdf");
+        document.setDocumentType(documentType);
+        return document;
+    }
 
     private LoanApplication application(ApplicationStatus status) {
         LoanApplication application = new LoanApplication();

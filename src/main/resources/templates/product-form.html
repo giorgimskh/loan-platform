@@ -7,9 +7,9 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head(${productId == null} ? 'New product' : 'Edit product')}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('products')}"></header>
+<header th:replace="~{fragments :: topbar('products')}"></header>
 
-<main>
+<main class="narrow">
     <p class="back"><a th:href="@{/ui/products}">Back to products</a></p>
 
     <h1 th:text="${productId == null} ? 'New product' : 'Edit product ' + ${productId}">New product</h1>
@@ -18,7 +18,7 @@
     <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Minimum amount cannot be greater</p>
 
     <!-- The field names must match the fields of LoanProductRequest -->
-    <form class="panel form-page" method="post" novalidate
+    <form class="card form-page" method="post" novalidate
           th:action="${productId == null} ? @{/ui/products} : @{/ui/products/{id}(id=${productId})}">
 
         <div th:replace="~{fragments :: field('name', 'Name', 'Must be unique. Letters, digits, spaces and . , &amp; ( ) - only')}"></div>
@@ -40,7 +40,23 @@
             </div>
         </fieldset>
 
-        <div th:replace="~{fragments :: field('requiredDocumentTypeIds', 'Required document type ids', 'Comma separated, for example 1,2. Leave empty if no documents are required')}"></div>
+        <!-- One checkbox per document type. Every ticked box is sent as requiredDocumentTypeIds=<id>,
+             and Spring collects them into the Set<Long> of LoanProductRequest. -->
+        <fieldset class="checks" th:classappend="${fieldErrors?.get('requiredDocumentTypeIds') != null} ? 'invalid'">
+            <legend>Documents a customer must upload</legend>
+            <!-- The hidden field starting with "_" tells Spring: "this field was on the form".
+                 Without it, no ticked box would mean "field missing" and not "an empty list". -->
+            <input type="hidden" name="_requiredDocumentTypeIds" value="on">
+
+            <label class="check" th:each="d : ${documentTypes}">
+                <input type="checkbox" name="requiredDocumentTypeIds" th:value="${d.id}"
+                       th:checked="${checkedIds.contains(d.id.toString())}">
+                <span th:text="${d.name}">ID Card</span>
+            </label>
+
+            <p class="help" th:if="${#lists.isEmpty(documentTypes)}">No document types exist yet.</p>
+            <p class="help" th:text="${fieldErrors?.get('requiredDocumentTypeIds')} ?: 'Tick none if this product needs no documents'">Hint</p>
+        </fieldset>
 
         <div class="form-actions">
             <button type="submit" th:text="${productId == null} ? 'Create product' : 'Save changes'">Create product</button>

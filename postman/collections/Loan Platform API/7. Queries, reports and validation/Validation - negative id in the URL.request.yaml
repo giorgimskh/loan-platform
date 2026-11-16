@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/api/customers/-1"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("Field error for id", function () {
+          pm.expect(pm.response.json().fieldErrors.id).to.eql("Id must be a positive number");
+      });
+    language: text/javascript
+order: 12000

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Loan Platform API",
-    "description": "Requests and tests for the Loan Platform REST API.\n\nStart the database and the application first (see README.md), then run the folders in order from top to bottom: later requests use ids saved by earlier ones.\n\nFile uploads: in the Postman app, select the files from the postman/files folder for the requests in the 'Documents' folder.",
+    "description": "Requests and tests for the Loan Platform REST API.\n\nStart the database and the application first (see README.md), then run the folders in order from top to bottom: later requests use ids saved by earlier ones.\n\nFile uploads: in the Postman app, select the files from the postman/files folder for the three upload requests in the 'Documents' folder and the one in the 'Decisions' folder.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -43,6 +43,34 @@
     },
     {
       "key": "rejectApplicationId",
+      "value": ""
+    },
+    {
+      "key": "documentTypeName",
+      "value": ""
+    },
+    {
+      "key": "documentTypeId",
+      "value": ""
+    },
+    {
+      "key": "tempDocumentTypeId",
+      "value": ""
+    },
+    {
+      "key": "tempCustomerId",
+      "value": ""
+    },
+    {
+      "key": "tempPersonalNumber",
+      "value": ""
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    },
+    {
+      "key": "approvedDocumentId",
       "value": ""
     }
   ],
@@ -295,8 +323,10 @@
                   "pm.test(\"Status is 200\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Response is a list\", function () {",
-                  "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "pm.test(\"Response is one page of customers\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.content).to.be.an(\"array\");",
+                  "    pm.expect(body.page.totalElements).to.be.at.least(1);",
                   "});"
                 ]
               }
@@ -314,7 +344,355 @@
                 "api",
                 "customers"
               ]
+            },
+            "description": "Paginated like the applications list: ?page=0&size=10&sort=fullName,asc"
+          }
+        },
+        {
+          "name": "Search customers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Only the customer with this email is found\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.content).to.have.lengthOf(1);",
+                  "    pm.expect(body.content[0].email).to.eql(pm.collectionVariables.get(\"email\"));",
+                  "});"
+                ]
+              }
             }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers?search={{email}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{email}}"
+                }
+              ]
+            },
+            "description": "search looks in the name, the email and the personal number, ignoring upper and lower case."
+          }
+        },
+        {
+          "name": "Search customers - text too long",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field error is returned for search\", function () {",
+                  "    pm.expect(pm.response.json().fieldErrors).to.have.property(\"search\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers?search=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"New phone is returned, email is unchanged\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.phone).to.eql(\"+995555000111\");",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get(\"email\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Ana Beridze\",\n  \"email\": \"{{email}}\",\n  \"personalNumber\": \"{{personalNumber}}\",\n  \"phone\": \"+995555000111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Keeping the customer's own email and personal number is allowed."
+          }
+        },
+        {
+          "name": "Update customer - invalid body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field errors are returned\", function () {",
+                  "    const errors = pm.response.json().fieldErrors;",
+                  "    pm.expect(errors).to.have.property(\"email\");",
+                  "    pm.expect(errors).to.have.property(\"personalNumber\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Ana Beridze\",\n  \"email\": \"not-an-email\",\n  \"personalNumber\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update customer - not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "999999"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Ana Beridze\",\n  \"email\": \"nobody@mail.com\",\n  \"personalNumber\": \"00000000001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create customer to delete",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// a second unique personal number: the first one with its digits reversed",
+                  "const first = pm.collectionVariables.get(\"personalNumber\");",
+                  "pm.collectionVariables.set(\"tempPersonalNumber\", first.split(\"\").reverse().join(\"\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"tempCustomerId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Temp Customer\",\n  \"email\": \"temp{{email}}\",\n  \"personalNumber\": \"{{tempPersonalNumber}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{tempCustomerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{tempCustomerId}}"
+              ]
+            },
+            "description": "This customer has no applications, so it can be deleted."
+          }
+        },
+        {
+          "name": "Delete customer - not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{tempCustomerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{tempCustomerId}}"
+              ]
+            },
+            "description": "The customer was deleted by the previous request."
           }
         },
         {
@@ -415,7 +793,331 @@
       ]
     },
     {
-      "name": "2. Products",
+      "name": "2. Document types",
+      "item": [
+        {
+          "name": "List document types",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The sample type ID Card is in the list\", function () {",
+                  "    const names = pm.response.json().map(function (d) { return d.name; });",
+                  "    pm.expect(names).to.include(\"ID Card\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create document type",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// a unique name, so the collection can be run again and again",
+                  "pm.collectionVariables.set(\"documentTypeName\", \"Passport \" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"documentTypeId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{documentTypeName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create document type - duplicate name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{documentTypeName}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create document type - invalid name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field error is returned for name\", function () {",
+                  "    pm.expect(pm.response.json().fieldErrors).to.have.property(\"name\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"<script>\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create document type to delete",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"tempDocumentTypeId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{documentTypeName}} temp\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete document type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types/{{tempDocumentTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types",
+                "{{tempDocumentTypeId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete document type - not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types/{{tempDocumentTypeId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types",
+                "{{tempDocumentTypeId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete document type - required by a product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/document-types/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "document-types",
+                "1"
+              ]
+            },
+            "description": "Document type 1 (ID Card) is required by the sample products."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Products",
       "item": [
         {
           "name": "List products",
@@ -749,7 +1451,7 @@
                   "pm.test(\"New values are returned\", function () {",
                   "    const body = pm.response.json();",
                   "    pm.expect(body.maxTermMonths).to.eql(72);",
-                  "    pm.expect(body.requiredDocuments).to.have.lengthOf(2);",
+                  "    pm.expect(body.requiredDocuments).to.have.lengthOf(1);",
                   "});"
                 ]
               }
@@ -777,12 +1479,185 @@
             "description": "Keeps the same name, changes the limits to amount 1000-60000 and term 6-72 months.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"{{productName}}\",\n  \"interestRate\": 12,\n  \"minAmount\": 1000,\n  \"maxAmount\": 60000,\n  \"minTermMonths\": 6,\n  \"maxTermMonths\": 72,\n  \"requiredDocumentTypeIds\": [1, 2]\n}",
+              "raw": "{\n  \"name\": \"{{productName}}\",\n  \"interestRate\": 12,\n  \"minAmount\": 1000,\n  \"maxAmount\": 60000,\n  \"minTermMonths\": 6,\n  \"maxTermMonths\": 72,\n  \"requiredDocumentTypeIds\": [1]\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
+            }
+          }
+        },
+        {
+          "name": "Get product by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The product is returned\", function () {",
+                  "    pm.expect(pm.response.json().name).to.eql(pm.collectionVariables.get(\"productName\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Calculate payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"5000 at 12% for 12 months costs 444.24 per month\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.monthlyPayment).to.eql(444.24);",
+                  "    pm.expect(body.totalPayment).to.be.above(5000);",
+                  "    pm.expect(body.totalInterest).to.be.closeTo(body.totalPayment - 5000, 0.001);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}/calculate?amount=5000&termMonths=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "{{productId}}",
+                "calculate"
+              ],
+              "query": [
+                {
+                  "key": "amount",
+                  "value": "5000"
+                },
+                {
+                  "key": "termMonths",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Payment calculator. The interest rate (12%) comes from the product. Nothing is saved."
+          }
+        },
+        {
+          "name": "Calculate payment - amount outside product range",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}/calculate?amount=50&termMonths=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "{{productId}}",
+                "calculate"
+              ],
+              "query": [
+                {
+                  "key": "amount",
+                  "value": "50"
+                },
+                {
+                  "key": "termMonths",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Rule 1: the product lends 1000-60000."
+          }
+        },
+        {
+          "name": "Calculate payment - invalid parameters",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Field errors are returned\", function () {",
+                  "    const errors = pm.response.json().fieldErrors;",
+                  "    pm.expect(errors).to.have.property(\"amount\");",
+                  "    pm.expect(errors).to.have.property(\"termMonths\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{productId}}/calculate?amount=0&termMonths=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "{{productId}}",
+                "calculate"
+              ],
+              "query": [
+                {
+                  "key": "amount",
+                  "value": "0"
+                },
+                {
+                  "key": "termMonths",
+                  "value": "500"
+                }
+              ]
             }
           }
         },
@@ -990,7 +1865,7 @@
       ]
     },
     {
-      "name": "3. Applications",
+      "name": "4. Applications",
       "item": [
         {
           "name": "Create application",
@@ -1452,6 +2327,104 @@
           }
         },
         {
+          "name": "Update application",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Term is changed, status stays SUBMITTED\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.termMonths).to.eql(18);",
+                  "    pm.expect(body.status).to.eql(\"SUBMITTED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanProductId\": {{productId}},\n  \"amount\": 5000,\n  \"termMonths\": 18\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{applicationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{applicationId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update application - amount above product maximum",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error message is returned\", function () {",
+                  "    pm.expect(pm.response.json().message).to.include(\"Amount must be between\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanProductId\": {{productId}},\n  \"amount\": 999999,\n  \"termMonths\": 18\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{applicationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{applicationId}}"
+              ]
+            }
+          }
+        },
+        {
           "name": "Get application - not found",
           "event": [
             {
@@ -1688,7 +2661,7 @@
       ]
     },
     {
-      "name": "4. Documents (file upload)",
+      "name": "5. Documents (upload, download)",
       "item": [
         {
           "name": "Upload document - PDF",
@@ -1705,7 +2678,8 @@
                   "    const body = pm.response.json();",
                   "    pm.expect(body.originalFileName).to.eql(\"sample.pdf\");",
                   "    pm.expect(body.documentTypeName).to.eql(\"ID Card\");",
-                  "});"
+                  "});",
+                  "pm.collectionVariables.set(\"documentId\", pm.response.json().id);"
                 ]
               }
             }
@@ -1783,7 +2757,7 @@
                 },
                 {
                   "key": "documentTypeId",
-                  "value": "2",
+                  "value": "{{documentTypeId}}",
                   "type": "text"
                 }
               ]
@@ -2062,12 +3036,238 @@
               ]
             }
           }
+        },
+        {
+          "name": "Missing documents - nothing is missing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The list is empty\", function () {",
+                  "    pm.expect(pm.response.json()).to.have.lengthOf(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{applicationId}}/missing-documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{applicationId}}",
+                "missing-documents"
+              ]
+            },
+            "description": "Rule 7: the product requires ID Card, and it was uploaded."
+          }
+        },
+        {
+          "name": "Download document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The PDF is returned as an attachment\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/pdf\");",
+                  "    pm.expect(pm.response.headers.get(\"Content-Disposition\")).to.include(\"sample.pdf\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/{{documentId}}/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "documents",
+                "{{documentId}}",
+                "download"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download document - not found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/999999/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "documents",
+                "999999",
+                "download"
+              ]
+            }
+          }
         }
       ]
     },
     {
-      "name": "5. Decisions (approve, reject, cancel)",
+      "name": "6. Decisions (approve, reject, cancel)",
       "item": [
+        {
+          "name": "Approve application - required document missing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"The message names the missing document\", function () {",
+                  "    pm.expect(pm.response.json().message).to.include(\"ID Card\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{approveApplicationId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{approveApplicationId}}",
+                "approve"
+              ]
+            },
+            "description": "Rule 7: nothing was uploaded for this application yet."
+          }
+        },
+        {
+          "name": "Missing documents - ID Card is missing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"ID Card is listed\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.lengthOf(1);",
+                  "    pm.expect(body[0].name).to.eql(\"ID Card\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{approveApplicationId}}/missing-documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{approveApplicationId}}",
+                "missing-documents"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload ID card for the application to approve",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.collectionVariables.set(\"approvedDocumentId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{approveApplicationId}}/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{approveApplicationId}}",
+                "documents"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "postman/files/sample.pdf"
+                },
+                {
+                  "key": "documentTypeId",
+                  "value": "1",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "In the Postman app, click the 'file' value and select the file from the postman/files folder of the project."
+          }
+        },
         {
           "name": "Approve application",
           "event": [
@@ -2137,6 +3337,76 @@
               ]
             },
             "description": "Rule 4."
+          }
+        },
+        {
+          "name": "Repayment schedule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"One payment per month, and nothing is left at the end\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.payments).to.have.lengthOf(24);",
+                  "    pm.expect(body.payments[23].remainingBalance).to.eql(0);",
+                  "    pm.expect(body.summary.monthlyPayment).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{approveApplicationId}}/schedule",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{approveApplicationId}}",
+                "schedule"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete document - application already approved",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/{{approvedDocumentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "documents",
+                "{{approvedDocumentId}}"
+              ]
+            },
+            "description": "After a decision the documents must stay."
           }
         },
         {
@@ -2242,7 +3512,7 @@
           }
         },
         {
-          "name": "Reject application - already approved",
+          "name": "Reject application - already rejected",
           "event": [
             {
               "listen": "test",
@@ -2265,27 +3535,130 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/applications/{{approveApplicationId}}/reject",
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/reject",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "applications",
-                "{{approveApplicationId}}",
+                "{{rejectApplicationId}}",
                 "reject"
               ]
             },
-            "description": "Rule 4.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"decisionComment\": \"Too late\"\n}",
+              "raw": "{\n  \"decisionComment\": \"Again\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
+            },
+            "description": "Rule 4: a decision can be changed, but not repeated."
+          }
+        },
+        {
+          "name": "Repayment schedule - application is not approved",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
             }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/schedule",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{rejectApplicationId}}",
+                "schedule"
+              ]
+            }
+          }
+        },
+        {
+          "name": "History of the rejected application",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Two lines: submitted, then rejected with the reason\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.lengthOf(2);",
+                  "    pm.expect(body[0].status).to.eql(\"SUBMITTED\");",
+                  "    pm.expect(body[1].status).to.eql(\"REJECTED\");",
+                  "    pm.expect(body[1].decisionComment).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{rejectApplicationId}}",
+                "history"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/{{documentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "documents",
+                "{{documentId}}"
+              ]
+            },
+            "description": "Allowed, because its application is still SUBMITTED."
           }
         },
         {
@@ -2432,8 +3805,56 @@
       ]
     },
     {
-      "name": "6. Queries, report and validation",
+      "name": "7. Queries, reports and validation",
       "item": [
+        {
+          "name": "Update application - already approved",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Error message is returned\", function () {",
+                  "    pm.expect(pm.response.json().message).to.include(\"cannot be modified\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanProductId\": {{productId}},\n  \"amount\": 5000,\n  \"termMonths\": 18\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{approveApplicationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{approveApplicationId}}"
+              ]
+            }
+          }
+        },
         {
           "name": "Customer applications - approved only",
           "event": [
@@ -2759,6 +4180,75 @@
                 "applications",
                 "reports",
                 "approved-totals"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Report - statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"The counts add up and the rate is a percentage\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.approved).to.be.at.least(1);",
+                  "    pm.expect(body.totalApplications).to.eql(body.submitted + body.approved + body.rejected);",
+                  "    pm.expect(body.approvalRate).to.be.within(0, 100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/reports/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "reports",
+                "statistics"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete customer - has applications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "customers",
+                "{{customerId}}"
               ]
             }
           }

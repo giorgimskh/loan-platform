@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface DocumentTypeRepository extends JpaRepository<DocumentType, Long> {
+
+    boolean existsByNameIgnoreCase(String name);
 }

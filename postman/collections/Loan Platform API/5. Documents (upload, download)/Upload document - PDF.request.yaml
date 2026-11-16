@@ -1,0 +1,28 @@
+$kind: http-request
+description: In the Postman app, click the 'file' value and select the file from the postman/files folder of the project.
+url: "{{baseUrl}}/api/applications/{{applicationId}}/documents"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: file
+      src:
+        - postman/files/sample.pdf
+    - type: text
+      key: documentTypeId
+      value: "1"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Document info is returned", function () {
+          const body = pm.response.json();
+          pm.expect(body.originalFileName).to.eql("sample.pdf");
+          pm.expect(body.documentTypeName).to.eql("ID Card");
+      });
+      pm.collectionVariables.set("documentId", pm.response.json().id);
+    language: text/javascript
+order: 1000

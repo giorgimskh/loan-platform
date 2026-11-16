@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/{{applicationId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "loanProductId": {{productId}},
+      "amount": 5000,
+      "termMonths": 18
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Term is changed, status stays SUBMITTED", function () {
+          const body = pm.response.json();
+          pm.expect(body.termMonths).to.eql(18);
+          pm.expect(body.status).to.eql("SUBMITTED");
+      });
+    language: text/javascript
+order: 11000

@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/{{rejectApplicationId}}/reject"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "decisionComment": "Income too low"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Status is REJECTED and the reason is saved", function () {
+          const body = pm.response.json();
+          pm.expect(body.status).to.eql("REJECTED");
+          pm.expect(body.decisionComment).to.eql("Income too low");
+      });
+    language: text/javascript
+order: 9000

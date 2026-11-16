@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/search?productName={{productName}}&amountAbove=-1"
+method: GET
+queryParams:
+  productName: "{{productName}}"
+  amountAbove: "-1"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("Field error for amountAbove", function () {
+          pm.expect(pm.response.json().fieldErrors).to.have.property("amountAbove");
+      });
+    language: text/javascript
+order: 8000

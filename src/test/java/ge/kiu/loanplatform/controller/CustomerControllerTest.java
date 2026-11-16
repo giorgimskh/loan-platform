@@ -11,6 +11,9 @@ import ge.kiu.loanplatform.service.LoanApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,9 +23,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -232,5 +240,89 @@ class CustomerControllerTest {
     void getById_returns400_whenIdIsNotANumber() throws Exception {
         mockMvc.perform(get("/api/customers/abc"))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---------- list with search and pagination ----------
+
+    @Test
+    void getAll_returns200WithOnePageOfCustomers() throws Exception {
+        when(customerService.getAll(eq("ana"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(customer()), PageRequest.of(0, 10), 1));
+
+        mockMvc.perform(get("/api/customers").param("search", "ana"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].fullName").value("Ana Beridze"))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+    }
+
+    @Test
+    void getAll_returns400_whenSearchTextIsTooLong() throws Exception {
+        mockMvc.perform(get("/api/customers").param("search", "a".repeat(101)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.search").value("Search text must be at most 100 characters"));
+    }
+
+    // ---------- update ----------
+
+    @Test
+    void update_returns200_whenBodyIsValid() throws Exception {
+        when(customerService.update(eq(1L), any(CustomerRequest.class))).thenReturn(customer());
+
+        mockMvc.perform(put("/api/customers/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Ana Beridze","email":"ana@mail.com","personalNumber":"01234567890"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    void update_returns400WithFieldErrors_whenBodyIsInvalid() throws Exception {
+        mockMvc.perform(put("/api/customers/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Ana Beridze","email":"not-an-email","personalNumber":"123"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.email").value("Email must be a valid email address"))
+                .andExpect(jsonPath("$.fieldErrors.personalNumber").value("Personal number must be exactly 11 digits"));
+    }
+
+    @Test
+    void update_returns409_whenEmailBelongsToAnotherCustomer() throws Exception {
+        when(customerService.update(eq(1L), any(CustomerRequest.class)))
+                .thenThrow(new ConflictException("Customer with email ana@mail.com already exists"));
+
+        mockMvc.perform(put("/api/customers/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"Ana Beridze","email":"ana@mail.com","personalNumber":"01234567890"}
+                                """))
+                .andExpect(status().isConflict());
+    }
+
+    // ---------- delete ----------
+
+    @Test
+    void delete_returns204_whenCustomerIsDeleted() throws Exception {
+        mockMvc.perform(delete("/api/customers/1"))
+                .andExpect(status().isNoContent());
+
+        verify(customerService).delete(1L);
+    }
+
+    @Test
+    void delete_returns409_whenCustomerHasApplications() throws Exception {
+        doThrow(new ConflictException("Customer with id 1 has applications and cannot be deleted"))
+                .when(customerService).delete(1L);
+
+        mockMvc.perform(delete("/api/customers/1"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Customer with id 1 has applications and cannot be deleted"));
+    }
+
+    private CustomerResponse customer() {
+        return new CustomerResponse(1L, "Ana Beridze", "ana@mail.com", "01234567890", "555123456");
     }
 }

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<!-- The "edit customer" page. The form posts to /ui/customers/{id} (the website version of PUT /api/customers/{id}). -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Edit customer')}"></head>
+<body>
+<header th:replace="~{fragments :: topbar('customers')}"></header>
+
+<main class="narrow">
+    <p class="back"><a th:href="@{/ui/customers}">Back to customers</a></p>
+
+    <h1 th:text="'Edit customer ' + ${customerId}">Edit customer 1</h1>
+
+    <!-- The service refused the request, e.g. the new email belongs to another customer -->
+    <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Email already exists</p>
+
+    <!-- The field names must match the fields of CustomerRequest -->
+    <form class="card form-page" method="post" novalidate th:action="@{/ui/customers/{id}(id=${customerId})}">
+        <div th:replace="~{fragments :: field('fullName', 'Full name', 'Letters, spaces, dots, apostrophes and hyphens')}"></div>
+        <div th:replace="~{fragments :: field('email', 'Email', 'Must be unique, for example ana@mail.com')}"></div>
+        <div class="pair">
+            <div th:replace="~{fragments :: field('personalNumber', 'Personal number', 'Exactly 11 digits, must be unique')}"></div>
+            <div th:replace="~{fragments :: field('phone', 'Phone (optional)', '9 to 15 digits, may start with +')}"></div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Save changes</button>
+            <a th:href="@{/ui/customers}">Cancel</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

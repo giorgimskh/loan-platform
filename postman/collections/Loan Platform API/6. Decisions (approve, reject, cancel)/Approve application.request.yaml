@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/{{approveApplicationId}}/approve"
+method: PUT
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Status is APPROVED", function () {
+          pm.expect(pm.response.json().status).to.eql("APPROVED");
+      });
+    language: text/javascript
+order: 4000

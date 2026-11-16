@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/{{rejectApplicationId}}/history"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Two lines: submitted, then rejected with the reason", function () {
+          const body = pm.response.json();
+          pm.expect(body).to.have.lengthOf(2);
+          pm.expect(body[0].status).to.eql("SUBMITTED");
+          pm.expect(body[1].status).to.eql("REJECTED");
+          pm.expect(body[1].decisionComment).to.be.a("string");
+      });
+    language: text/javascript
+order: 12000

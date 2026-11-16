@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/customers/{{customerId}}/applications?status=APPROVED"
+method: GET
+queryParams:
+  status: APPROVED
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Only APPROVED applications of this customer are returned", function () {
+          const list = pm.response.json();
+          pm.expect(list.length).to.be.at.least(1);
+          list.forEach(function (a) {
+              pm.expect(a.status).to.eql("APPROVED");
+              pm.expect(a.customerId).to.eql(Number(pm.collectionVariables.get("customerId")));
+          });
+      });
+    language: text/javascript
+order: 2000

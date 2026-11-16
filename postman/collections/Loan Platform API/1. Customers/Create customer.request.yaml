@@ -1,0 +1,35 @@
+$kind: http-request
+description: Creates a customer. The pre-request script generates a unique email and personal number.
+url: "{{baseUrl}}/api/customers"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "Ana Beridze",
+      "email": "{{email}}",
+      "personalNumber": "{{personalNumber}}",
+      "phone": "555123456"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // unique values, so the whole collection can be run again and again
+      const unique = Date.now().toString();
+      pm.collectionVariables.set("email", "ana" + unique + "@mail.com");
+      pm.collectionVariables.set("personalNumber", unique.slice(-11).padStart(11, "0"));
+      pm.collectionVariables.set("productName", "Auto Loan " + unique);
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set("customerId", pm.response.json().id);
+      pm.test("Customer is returned with an id", function () {
+          pm.expect(pm.response.json().id).to.be.a("number");
+      });
+    language: text/javascript
+order: 1000

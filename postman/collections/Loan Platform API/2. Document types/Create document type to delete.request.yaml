@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/api/document-types"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{documentTypeName}} temp"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.collectionVariables.set("tempDocumentTypeId", pm.response.json().id);
+    language: text/javascript
+order: 5000

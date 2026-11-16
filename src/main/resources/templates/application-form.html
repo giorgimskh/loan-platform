@@ -1,21 +1,39 @@
 <!DOCTYPE html>
+<!--
+  One template for two pages:
+    applicationId is missing -> "New application",  the form posts to /ui/applications
+    applicationId is present -> "Edit application", the form posts to /ui/applications/{id}
+                                (the customer cannot be changed, so it is shown as text)
+-->
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments :: head('New application')}"></head>
+<head th:replace="~{fragments :: head(${applicationId == null} ? 'New application' : 'Edit application')}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('applications')}"></header>
+<header th:replace="~{fragments :: topbar('applications')}"></header>
 
-<main>
-    <p class="back"><a th:href="@{/ui/applications}">Back to applications</a></p>
+<main class="narrow">
+    <p class="back" th:if="${applicationId == null}"><a th:href="@{/ui/applications}">Back to applications</a></p>
+    <p class="back" th:if="${applicationId != null}">
+        <a th:href="@{/ui/applications/{id}(id=${applicationId})}" th:text="'Back to application No. ' + ${applicationId}">Back to application No. 1</a>
+    </p>
 
-    <h1>New application</h1>
+    <h1 th:text="${applicationId == null} ? 'New application' : 'Edit application No. ' + ${applicationId}">New application</h1>
 
     <!-- The service refused the request, e.g. the amount is outside the product's range (rule 1) -->
     <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Amount must be between 500 and 20000</p>
 
-    <!-- The field names must match the fields of LoanApplicationRequest -->
-    <form class="panel form-page" th:action="@{/ui/applications}" method="post" novalidate>
+    <!-- The field names must match the fields of LoanApplicationRequest (new) or LoanApplicationUpdateRequest (edit) -->
+    <form class="card form-page" method="post" novalidate
+          th:action="${applicationId == null} ? @{/ui/applications} : @{/ui/applications/{id}(id=${applicationId})}">
 
-        <div class="field" th:classappend="${fieldErrors?.get('customerId') != null} ? 'invalid'">
+        <!-- edit: the customer is fixed -->
+        <div class="field" th:if="${applicationId != null}">
+            <span class="label">Customer</span>
+            <p class="fixed-value" th:text="${customerName}">Ana Beridze</p>
+            <p class="help">An application stays with the customer who submitted it</p>
+        </div>
+
+        <!-- new: choose the customer -->
+        <div class="field" th:if="${applicationId == null}" th:classappend="${fieldErrors?.get('customerId') != null} ? 'invalid'">
             <label for="customerId">Customer</label>
             <select id="customerId" name="customerId" aria-describedby="customerId-help">
                 <option value="">Choose a customer</option>
@@ -43,9 +61,13 @@
             <div th:replace="~{fragments :: field('termMonths', 'Term in months', 'Inside the range of the product')}"></div>
         </div>
 
+        <p class="help">Not sure about the numbers?
+            <a th:href="@{/ui/calculator}">Open the payment calculator</a> to see the monthly payment first.
+        </p>
+
         <div class="form-actions">
-            <button type="submit">Submit application</button>
-            <a th:href="@{/ui/applications}">Cancel</a>
+            <button type="submit" th:text="${applicationId == null} ? 'Submit application' : 'Save changes'">Submit application</button>
+            <a th:href="${applicationId == null} ? @{/ui/applications} : @{/ui/applications/{id}(id=${applicationId})}">Cancel</a>
         </div>
     </form>
 </main>

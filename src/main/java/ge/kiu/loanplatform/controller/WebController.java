@@ -3,9 +3,11 @@ package ge.kiu.loanplatform.controller;
 import ge.kiu.loanplatform.dto.CustomerRequest;
 import ge.kiu.loanplatform.dto.CustomerResponse;
 import ge.kiu.loanplatform.dto.DocumentResponse;
+import ge.kiu.loanplatform.dto.DocumentTypeRequest;
 import ge.kiu.loanplatform.dto.DocumentTypeResponse;
 import ge.kiu.loanplatform.dto.LoanApplicationRequest;
 import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.dto.LoanApplicationUpdateRequest;
 import ge.kiu.loanplatform.dto.LoanProductRequest;
 import ge.kiu.loanplatform.dto.LoanProductResponse;
 import ge.kiu.loanplatform.dto.RejectRequest;
@@ -15,8 +17,10 @@ import ge.kiu.loanplatform.exception.ConflictException;
 import ge.kiu.loanplatform.exception.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.CustomerService;
 import ge.kiu.loanplatform.service.DocumentService;
+import ge.kiu.loanplatform.service.DocumentTypeService;
 import ge.kiu.loanplatform.service.LoanApplicationService;
 import ge.kiu.loanplatform.service.LoanProductService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
@@ -41,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -69,6 +74,10 @@ public class WebController {
     private final LoanProductService loanProductService;
     private final LoanApplicationService loanApplicationService;
     private final DocumentService documentService;
+    private final DocumentTypeService documentTypeService;
+
+    // the first page of the customers list, newest first (used when the register form is shown again)
+    private static final Pageable NEWEST_CUSTOMERS = PageRequest.of(0, 6, Sort.by(Sort.Direction.DESC, "id"));
 
     // An empty form field arrives as "" (empty text). This turns "" into null,
     // so an empty optional field (phone) is treated as "not sent", like in JSON.
@@ -87,14 +96,19 @@ public class WebController {
         Pageable newestFive = PageRequest.of(0, 5, Sort.by(Sort.Direction.DESC, "createdAt"));
         model.addAttribute("waiting", loanApplicationService.getAll(ApplicationStatus.SUBMITTED, newestFive));
         model.addAttribute("totals", loanApplicationService.getApprovedTotalsPerProduct());
+        model.addAttribute("stats", loanApplicationService.getStatistics()); // the numbers and charts at the top
         return "home"; // templates/home.html
     }
 
     // ---------- customers ----------
 
+    // Same search and pagination as GET /api/customers, e.g. /ui/customers?search=ana&page=1
     @GetMapping("/customers")
-    public String customers(Model model) {
-        model.addAttribute("customers", customerService.getAll());
+    public String customers(@RequestParam(required = false) String search,
+                            @PageableDefault(size = 6, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+                            Model model) {
+        model.addAttribute("page", customerService.getAll(search, pageable));
+        model.addAttribute("search", search);
         return "customers";
     }
 
@@ -107,7 +121,7 @@ public class WebController {
                                  Model model, RedirectAttributes redirect) {
         if (result.hasErrors()) {
             showFieldErrors(model, params, result);
-            return customers(model);
+            return customers(null, NEWEST_CUSTOMERS, model);
         }
         try {
             CustomerResponse created = customerService.create(form);
@@ -117,8 +131,53 @@ public class WebController {
         } catch (ConflictException ex) {
             // e.g. the email is already used: keep the form and show the reason above it
             showFormError(model, params, ex.getMessage());
-            return customers(model);
+            return customers(null, NEWEST_CUSTOMERS, model);
         }
+    }
+
+    // The edit page: the form filled with the customer's current values
+    @GetMapping("/customers/{id}/edit")
+    public String editCustomer(@PathVariable Long id, Model model) {
+        CustomerResponse customer = customerService.getById(id);
+
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("fullName", customer.fullName());
+        values.put("email", customer.email());
+        values.put("personalNumber", customer.personalNumber());
+        values.put("phone", customer.phone());
+
+        model.addAttribute("values", values);
+        model.addAttribute("customerId", id);
+        return "customer-form";
+    }
+
+    // The website version of PUT /api/customers/{id}
+    @PostMapping("/customers/{id}")
+    public String updateCustomer(@PathVariable Long id,
+                                 @Valid @ModelAttribute CustomerRequest form, BindingResult result,
+                                 @RequestParam Map<String, String> params,
+                                 Model model, RedirectAttributes redirect) {
+        model.addAttribute("customerId", id);
+        if (result.hasErrors()) {
+            showFieldErrors(model, params, result);
+            return "customer-form";
+        }
+        try {
+            CustomerResponse updated = customerService.update(id, form);
+            redirect.addFlashAttribute("message", updated.fullName() + " was saved");
+            return "redirect:/ui/customers";
+        } catch (ConflictException ex) {
+            showFormError(model, params, ex.getMessage());
+            return "customer-form";
+        }
+    }
+
+    // The website version of DELETE /api/customers/{id}; a customer with applications is refused (409)
+    @PostMapping("/customers/{id}/delete")
+    public String deleteCustomer(@PathVariable Long id, RedirectAttributes redirect) {
+        customerService.delete(id);
+        redirect.addFlashAttribute("message", "Customer " + id + " was deleted");
+        return "redirect:/ui/customers";
     }
 
     @GetMapping("/customers/{id}/applications")
@@ -138,17 +197,19 @@ public class WebController {
     }
 
     @GetMapping("/products/new")
-    public String newProduct() {
-        return "product-form"; // no "productId" in the model = the template shows "New product"
+    public String newProduct(Model model) {
+        // no "productId" in the model = the template shows "New product"; no checkbox is ticked
+        return productForm(model, List.of());
     }
 
     @PostMapping("/products")
     public String createProduct(@Valid @ModelAttribute LoanProductRequest form, BindingResult result,
                                 @RequestParam Map<String, String> params,
+                                @RequestParam(name = "requiredDocumentTypeIds", required = false) List<String> checkedIds,
                                 Model model, RedirectAttributes redirect) {
         if (result.hasErrors()) {
             showFieldErrors(model, params, result);
-            return "product-form";
+            return productForm(model, checkedIds);
         }
         try {
             LoanProductResponse created = loanProductService.create(form);
@@ -156,7 +217,7 @@ public class WebController {
             return "redirect:/ui/products";
         } catch (BusinessRuleException | ConflictException | ResourceNotFoundException ex) {
             showFormError(model, params, ex.getMessage());
-            return "product-form";
+            return productForm(model, checkedIds);
         }
     }
 
@@ -165,9 +226,10 @@ public class WebController {
     public String editProduct(@PathVariable Long id, Model model) {
         LoanProductResponse product = loanProductService.getById(id);
 
-        List<String> documentTypeIds = new ArrayList<>();
+        // the ids of the documents this product requires now: their checkboxes start ticked
+        List<String> checkedIds = new ArrayList<>();
         for (DocumentTypeResponse documentType : product.requiredDocuments()) {
-            documentTypeIds.add(documentType.id().toString());
+            checkedIds.add(documentType.id().toString());
         }
 
         Map<String, String> values = new LinkedHashMap<>();
@@ -177,11 +239,10 @@ public class WebController {
         values.put("maxAmount", product.maxAmount().toPlainString());
         values.put("minTermMonths", product.minTermMonths().toString());
         values.put("maxTermMonths", product.maxTermMonths().toString());
-        values.put("requiredDocumentTypeIds", String.join(",", documentTypeIds)); // e.g. "1,2"
 
         model.addAttribute("values", values);
         model.addAttribute("productId", id);
-        return "product-form";
+        return productForm(model, checkedIds);
     }
 
     // The website version of PUT /api/products/{id}
@@ -189,11 +250,12 @@ public class WebController {
     public String updateProduct(@PathVariable Long id,
                                 @Valid @ModelAttribute LoanProductRequest form, BindingResult result,
                                 @RequestParam Map<String, String> params,
+                                @RequestParam(name = "requiredDocumentTypeIds", required = false) List<String> checkedIds,
                                 Model model, RedirectAttributes redirect) {
         model.addAttribute("productId", id);
         if (result.hasErrors()) {
             showFieldErrors(model, params, result);
-            return "product-form";
+            return productForm(model, checkedIds);
         }
         try {
             LoanProductResponse updated = loanProductService.update(id, form);
@@ -201,7 +263,7 @@ public class WebController {
             return "redirect:/ui/products";
         } catch (BusinessRuleException | ConflictException | ResourceNotFoundException ex) {
             showFormError(model, params, ex.getMessage());
-            return "product-form";
+            return productForm(model, checkedIds);
         }
     }
 
@@ -210,6 +272,68 @@ public class WebController {
         loanProductService.delete(id);
         redirect.addFlashAttribute("message", "Product " + id + " was deleted");
         return "redirect:/ui/products";
+    }
+
+    // ---------- document types ----------
+
+    @GetMapping("/document-types")
+    public String documentTypes(Model model) {
+        model.addAttribute("documentTypes", documentTypeService.getAll());
+        return "document-types";
+    }
+
+    @PostMapping("/document-types")
+    public String createDocumentType(@Valid @ModelAttribute DocumentTypeRequest form, BindingResult result,
+                                     @RequestParam Map<String, String> params,
+                                     Model model, RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            showFieldErrors(model, params, result);
+            return documentTypes(model);
+        }
+        try {
+            DocumentTypeResponse created = documentTypeService.create(form);
+            redirect.addFlashAttribute("message", created.name() + " was added");
+            return "redirect:/ui/document-types";
+        } catch (ConflictException ex) {
+            showFormError(model, params, ex.getMessage());
+            return documentTypes(model);
+        }
+    }
+
+    @PostMapping("/document-types/{id}/delete")
+    public String deleteDocumentType(@PathVariable Long id, RedirectAttributes redirect) {
+        documentTypeService.delete(id);
+        redirect.addFlashAttribute("message", "Document type " + id + " was deleted");
+        return "redirect:/ui/document-types";
+    }
+
+    // ---------- payment calculator ----------
+
+    // The website version of GET /api/products/{id}/calculate.
+    // The form has the same three fields as LoanApplicationUpdateRequest (product, amount, term),
+    // so that DTO and its validation annotations are reused here.
+    // It is a GET form: calculating changes nothing, and the result page can be bookmarked.
+    @GetMapping("/calculator")
+    public String calculator(@Valid @ModelAttribute LoanApplicationUpdateRequest form, BindingResult result,
+                             @RequestParam Map<String, String> params, Model model) {
+        model.addAttribute("products", loanProductService.getAll());
+        model.addAttribute("values", params);
+        if (!params.containsKey("amount")) {
+            // the page was opened by a link, the form was not sent yet: show it empty, without errors
+            return "calculator";
+        }
+        if (result.hasErrors()) {
+            showFieldErrors(model, params, result);
+            return "calculator";
+        }
+        try {
+            model.addAttribute("calculation",
+                    loanApplicationService.calculate(form.loanProductId(), form.amount(), form.termMonths()));
+        } catch (BusinessRuleException | ResourceNotFoundException ex) {
+            // rule 1 or 2: this product does not lend that amount or for that long
+            showFormError(model, params, ex.getMessage());
+        }
+        return "calculator";
     }
 
     // ---------- applications ----------
@@ -227,12 +351,11 @@ public class WebController {
         return "applications";
     }
 
-    // /ui/applications/new?customerId=1 opens the form with that customer already chosen
+    // /ui/applications/new?customerId=1 opens the form with that customer already chosen.
+    // The calculator links here with ?loanProductId=..&amount=..&termMonths=.. to fill the other fields.
     @GetMapping("/applications/new")
-    public String newApplication(@RequestParam(required = false) Long customerId, Model model) {
-        if (customerId != null) {
-            model.addAttribute("values", Map.of("customerId", customerId.toString()));
-        }
+    public String newApplication(@RequestParam Map<String, String> params, Model model) {
+        model.addAttribute("values", params);
         return applicationForm(model);
     }
 
@@ -268,40 +391,86 @@ public class WebController {
         LoanApplicationResponse application = loanApplicationService.getById(id);
         // not named "application": that name is reserved by Thymeleaf
         model.addAttribute("loanApplication", application);
-        // the documents this application's product requires (choices of the upload form)
-        for (LoanProductResponse product : loanProductService.getAll()) {
-            if (product.id().equals(application.loanProductId())) {
-                model.addAttribute("requiredDocuments", product.requiredDocuments());
-            }
+        // rule 7: what the product requires and which of those documents are still missing
+        model.addAttribute("requiredDocuments", loanProductService.getById(application.loanProductId()).requiredDocuments());
+        model.addAttribute("missingDocuments", loanApplicationService.getMissingDocuments(id));
+        model.addAttribute("documentTypes", documentTypeService.getAll()); // choices of the upload form
+        model.addAttribute("history", loanApplicationService.getHistory(id));
+        // only an approved application has a repayment schedule
+        if (application.status() == ApplicationStatus.APPROVED) {
+            model.addAttribute("schedule", loanApplicationService.getSchedule(id));
         }
         return "application-detail";
     }
 
+    // The edit page is the same template as "new application", filled with the current values
+    @GetMapping("/applications/{id}/edit")
+    public String editApplication(@PathVariable Long id, Model model) {
+        LoanApplicationResponse application = loanApplicationService.getById(id);
+
+        Map<String, String> values = new LinkedHashMap<>();
+        values.put("loanProductId", application.loanProductId().toString());
+        values.put("amount", application.amount().toPlainString());
+        values.put("termMonths", application.termMonths().toString());
+
+        model.addAttribute("values", values);
+        return applicationEditForm(model, id);
+    }
+
+    // The website version of PUT /api/applications/{id}
+    @PostMapping("/applications/{id}")
+    public String updateApplication(@PathVariable Long id,
+                                    @Valid @ModelAttribute LoanApplicationUpdateRequest form, BindingResult result,
+                                    @RequestParam Map<String, String> params,
+                                    Model model, RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            showFieldErrors(model, params, result);
+            return applicationEditForm(model, id);
+        }
+        try {
+            loanApplicationService.update(id, form);
+            redirect.addFlashAttribute("message", "Application " + id + " was saved");
+            return "redirect:/ui/applications/" + id;
+        } catch (BusinessRuleException | ConflictException ex) {
+            // rule 1 or 2 (amount or term outside the range), or rule 4 (a decided application cannot be modified)
+            showFormError(model, params, ex.getMessage());
+            return applicationEditForm(model, id);
+        }
+    }
+
+    // approve / reject / cancel can be clicked on the application page or in the "Actions" menu
+    // of a list, so afterwards the user is sent back to the page the click came from.
+
     @PostMapping("/applications/{id}/approve")
-    public String approve(@PathVariable Long id, RedirectAttributes redirect) {
+    public String approve(@PathVariable Long id, HttpServletRequest request, RedirectAttributes redirect) {
         loanApplicationService.approve(id);
         redirect.addFlashAttribute("message", "Application " + id + " was approved");
-        return "redirect:/ui/applications/" + id;
+        return "redirect:" + previousUiPageOr(request, "/ui/applications/" + id);
     }
 
     @PostMapping("/applications/{id}/reject")
     public String reject(@PathVariable Long id, @Valid @ModelAttribute RejectRequest form, BindingResult result,
-                         RedirectAttributes redirect) {
+                         HttpServletRequest request, RedirectAttributes redirect) {
         if (result.hasErrors()) {
             // only one field, so a short red message after the redirect is enough
             redirect.addFlashAttribute("error", result.getFieldErrors().getFirst().getDefaultMessage());
-            return "redirect:/ui/applications/" + id;
+        } else {
+            loanApplicationService.reject(id, form);
+            redirect.addFlashAttribute("message", "Application " + id + " was rejected");
         }
-        loanApplicationService.reject(id, form);
-        redirect.addFlashAttribute("message", "Application " + id + " was rejected");
-        return "redirect:/ui/applications/" + id;
+        return "redirect:" + previousUiPageOr(request, "/ui/applications/" + id);
     }
 
     @PostMapping("/applications/{id}/delete")
-    public String cancel(@PathVariable Long id, RedirectAttributes redirect) {
+    public String cancel(@PathVariable Long id, HttpServletRequest request, RedirectAttributes redirect) {
         loanApplicationService.delete(id);
         redirect.addFlashAttribute("message", "Application " + id + " was cancelled");
-        return "redirect:/ui/applications";
+        // the application's own page no longer exists, so from there go to the list
+        String previousPage = previousUiPageOr(request, "/ui/applications");
+        if (previousPage.startsWith("/ui/applications/" + id)) {
+            previousPage = "/ui/applications";
+        }
+        return "redirect:" + previousPage;
     }
 
     // The form uses enctype="multipart/form-data", the same as the REST upload endpoint
@@ -313,22 +482,82 @@ public class WebController {
         return "redirect:/ui/applications/" + id;
     }
 
+    // The website version of DELETE /api/documents/{id}; afterwards back to the application's page
+    @PostMapping("/documents/{id}/delete")
+    public String deleteDocument(@PathVariable Long id, HttpServletRequest request, RedirectAttributes redirect) {
+        documentService.delete(id);
+        redirect.addFlashAttribute("message", "Document " + id + " was deleted");
+        return "redirect:" + previousUiPageOr(request, "/ui/applications");
+    }
+
     // ---------- errors ----------
 
-    // When a service throws one of our custom exceptions on a /ui page, show an HTML page with the message.
+    // When a service throws one of our custom exceptions on a /ui page (e.g. rule 4: cancelling an
+    // APPROVED application, or approving it a second time), send the user back to the page they came from and show the reason there.
     // An @ExceptionHandler inside a controller wins over the global @RestControllerAdvice (which returns JSON).
     @ExceptionHandler({ResourceNotFoundException.class, BusinessRuleException.class, ConflictException.class})
-    public String handleServiceError(RuntimeException ex, Model model) {
+    public String handleServiceError(RuntimeException ex, HttpServletRequest request,
+                                     Model model, RedirectAttributes redirect) {
+        String previousPage = previousUiPage(request);
+        if (previousPage != null) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return "redirect:" + previousPage;
+        }
+        // no page to go back to (e.g. the address was typed by hand): show a separate error page
         model.addAttribute("errorType", ex.getClass().getSimpleName());
         model.addAttribute("errorMessage", ex.getMessage());
         return "error-message";
     }
 
+    // The page the user came from, or "fallback" when it is unknown
+    private String previousUiPageOr(HttpServletRequest request, String fallback) {
+        String previousPage = previousUiPage(request);
+        return previousPage != null ? previousPage : fallback;
+    }
+
+    // The browser sends the address of the page the user came from in the "Referer" header.
+    // We use only its path, and only if it is one of our own /ui pages, so nobody can use
+    // this to redirect a user to another website.
+    private String previousUiPage(HttpServletRequest request) {
+        String referer = request.getHeader("Referer");
+        if (referer == null) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(referer);
+            String path = uri.getPath();
+            // going back to the page that just failed would fail again, so that does not count
+            if (path == null || !path.startsWith("/ui") || path.equals(request.getRequestURI())) {
+                return null;
+            }
+            return uri.getQuery() == null ? path : path + "?" + uri.getQuery();
+        } catch (IllegalArgumentException invalidAddress) {
+            return null;
+        }
+    }
+
     // ---------- helpers ----------
+
+    // The product form needs every document type (its checkboxes) and which of them are ticked
+    private String productForm(Model model, List<String> checkedIds) {
+        model.addAttribute("documentTypes", documentTypeService.getAll());
+        // no checkbox ticked = the browser sends nothing, so checkedIds can be null
+        model.addAttribute("checkedIds", checkedIds == null ? List.of() : checkedIds);
+        return "product-form";
+    }
+
+    // The edit form shows which application is edited (its number and customer) and the product dropdown
+    private String applicationEditForm(Model model, Long id) {
+        model.addAttribute("applicationId", id);
+        model.addAttribute("customerName", loanApplicationService.getById(id).customerFullName());
+        model.addAttribute("products", loanProductService.getAll());
+        return "application-form";
+    }
 
     // The application form needs the customers and products for its two dropdowns
     private String applicationForm(Model model) {
-        model.addAttribute("customers", customerService.getAll());
+        // unpaged = every customer in one list, sorted by name
+        model.addAttribute("customers", customerService.getAll(null, Pageable.unpaged(Sort.by("fullName"))).getContent());
         model.addAttribute("products", loanProductService.getAll());
         return "application-form";
     }

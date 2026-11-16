@@ -2,12 +2,19 @@ package ge.kiu.loanplatform.controller;
 
 import ge.kiu.loanplatform.dto.LoanApplicationRequest;
 import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.dto.LoanApplicationUpdateRequest;
 import ge.kiu.loanplatform.dto.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.RejectRequest;
 import ge.kiu.loanplatform.entity.ApplicationStatus;
 import ge.kiu.loanplatform.exception.BusinessRuleException;
 import ge.kiu.loanplatform.exception.ConflictException;
 import ge.kiu.loanplatform.service.LoanApplicationService;
+import ge.kiu.loanplatform.dto.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.PaymentCalculationResponse;
+import ge.kiu.loanplatform.dto.RepaymentScheduleResponse;
+import ge.kiu.loanplatform.dto.ScheduleEntryResponse;
+import ge.kiu.loanplatform.dto.StatisticsResponse;
+import ge.kiu.loanplatform.dto.StatusChangeResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -124,6 +131,49 @@ class LoanApplicationControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Amount must be between 500.00 and 20000.00 for product Consumer Loan"));
+    }
+
+    @Test
+    void update_returns200_whenBodyIsValid() throws Exception {
+        when(loanApplicationService.update(eq(1L), any(LoanApplicationUpdateRequest.class)))
+                .thenReturn(response(ApplicationStatus.SUBMITTED, null));
+
+        mockMvc.perform(put("/api/applications/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loanProductId":1,"amount":6000,"termMonths":24}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUBMITTED"));
+
+        verify(loanApplicationService).update(1L, new LoanApplicationUpdateRequest(1L, new BigDecimal("6000"), 24));
+    }
+
+    @Test
+    void update_returns400WithFieldErrors_whenBodyIsEmpty() throws Exception {
+        mockMvc.perform(put("/api/applications/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.loanProductId").value("Loan product id is required"))
+                .andExpect(jsonPath("$.fieldErrors.amount").value("Amount is required"))
+                .andExpect(jsonPath("$.fieldErrors.termMonths").value("Term is required"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
+    void update_returns409_whenApplicationIsNotSubmitted() throws Exception { // rule 4
+        when(loanApplicationService.update(eq(1L), any(LoanApplicationUpdateRequest.class)))
+                .thenThrow(new ConflictException("Application with id 1 is APPROVED and cannot be modified"));
+
+        mockMvc.perform(put("/api/applications/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loanProductId":1,"amount":6000,"termMonths":24}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Application with id 1 is APPROVED and cannot be modified"));
     }
 
     @Test
@@ -261,6 +311,83 @@ class LoanApplicationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].productName").value("Consumer Loan"))
                 .andExpect(jsonPath("$[0].totalApprovedAmount").value(12000.00));
+    }
+
+    // ---------- statistics, history, missing documents, schedule ----------
+
+    @Test
+    void statistics_returns200WithTheNumbers() throws Exception {
+        when(loanApplicationService.getStatistics()).thenReturn(new StatisticsResponse(
+                4, 1, 2, 1, new BigDecimal("66.7"), new BigDecimal("4500.00"), new BigDecimal("12000.00")));
+
+        mockMvc.perform(get("/api/applications/reports/statistics"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalApplications").value(4))
+                .andExpect(jsonPath("$.approvalRate").value(66.7))
+                .andExpect(jsonPath("$.totalApprovedAmount").value(12000.00));
+    }
+
+    @Test
+    void history_returns200WithEveryStatusChange() throws Exception {
+        when(loanApplicationService.getHistory(1L)).thenReturn(List.of(
+                new StatusChangeResponse(ApplicationStatus.SUBMITTED, null, LocalDateTime.now()),
+                new StatusChangeResponse(ApplicationStatus.REJECTED, "Income too low", LocalDateTime.now())));
+
+        mockMvc.perform(get("/api/applications/1/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("SUBMITTED"))
+                .andExpect(jsonPath("$[1].decisionComment").value("Income too low"));
+    }
+
+    @Test
+    void missingDocuments_returns200WithTheMissingTypes() throws Exception {
+        when(loanApplicationService.getMissingDocuments(1L)).thenReturn(List.of(new DocumentTypeResponse(1L, "ID Card")));
+
+        mockMvc.perform(get("/api/applications/1/missing-documents"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("ID Card"));
+    }
+
+    @Test
+    void approve_returns409_whenARequiredDocumentIsMissing() throws Exception { // rule 7
+        when(loanApplicationService.approve(1L)).thenThrow(new ConflictException(
+                "Application with id 1 cannot be approved, required documents are missing: ID Card"));
+
+        mockMvc.perform(put("/api/applications/1/approve"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
+                        "Application with id 1 cannot be approved, required documents are missing: ID Card"));
+    }
+
+    @Test
+    void schedule_returns200WithSummaryAndPayments() throws Exception {
+        PaymentCalculationResponse summary = new PaymentCalculationResponse(new BigDecimal("5000"),
+                new BigDecimal("14.50"), 12, new BigDecimal("450.11"), new BigDecimal("5401.36"), new BigDecimal("401.36"));
+        when(loanApplicationService.getSchedule(1L)).thenReturn(new RepaymentScheduleResponse(1L, summary,
+                List.of(new ScheduleEntryResponse(1, new BigDecimal("450.11"), new BigDecimal("60.42"),
+                        new BigDecimal("389.69"), new BigDecimal("4610.31")))));
+
+        mockMvc.perform(get("/api/applications/1/schedule"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.summary.monthlyPayment").value(450.11))
+                .andExpect(jsonPath("$.payments[0].month").value(1))
+                .andExpect(jsonPath("$.payments[0].remainingBalance").value(4610.31));
+    }
+
+    @Test
+    void schedule_returns409_whenApplicationIsNotApproved() throws Exception {
+        when(loanApplicationService.getSchedule(1L)).thenThrow(new ConflictException(
+                "Application with id 1 is SUBMITTED; only an APPROVED application has a repayment schedule"));
+
+        mockMvc.perform(get("/api/applications/1/schedule"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void history_returns400_whenIdIsNegative() throws Exception {
+        mockMvc.perform(get("/api/applications/-1/history"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").value("Id must be a positive number"));
     }
 
     private LoanApplicationResponse response(ApplicationStatus status, String decisionComment) {

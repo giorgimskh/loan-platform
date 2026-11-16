@@ -2,7 +2,10 @@ package ge.kiu.loanplatform.service;
 
 import ge.kiu.loanplatform.config.AppProperties;
 import ge.kiu.loanplatform.exception.BusinessRuleException;
+import ge.kiu.loanplatform.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -49,6 +52,16 @@ public class FileStorageService {
         } catch (IOException e) {
             throw new UncheckedIOException("Could not store file", e);
         }
+    }
+
+    // Opens a stored file for download. Nothing is read here: Spring reads the bytes while it sends the response.
+    public Resource load(String storedFilePath) {
+        Resource resource = new FileSystemResource(storedFilePath);
+        if (!resource.exists()) {
+            // the database row exists but the file was removed from the uploads folder by hand
+            throw new ResourceNotFoundException("The stored file of this document no longer exists");
+        }
+        return resource;
     }
 
     public void delete(String storedFilePath) {

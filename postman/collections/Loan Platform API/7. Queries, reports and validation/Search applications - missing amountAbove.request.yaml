@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/applications/search?productName={{productName}}"
+method: GET
+queryParams:
+  productName: "{{productName}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("Error names the missing parameter", function () {
+          pm.expect(pm.response.json().message).to.include("amountAbove");
+      });
+    language: text/javascript
+order: 7000

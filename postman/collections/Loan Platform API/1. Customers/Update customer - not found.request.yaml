@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/customers/999999"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "fullName": "Ana Beridze",
+      "email": "nobody@mail.com",
+      "personalNumber": "00000000001"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 404", function () {
+          pm.response.to.have.status(404);
+      });
+    language: text/javascript
+order: 11000

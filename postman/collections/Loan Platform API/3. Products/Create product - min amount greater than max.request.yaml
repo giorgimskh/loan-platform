@@ -1,0 +1,28 @@
+$kind: http-request
+url: "{{baseUrl}}/api/products"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{productName}} A",
+      "interestRate": 11.5,
+      "minAmount": 9000,
+      "maxAmount": 500,
+      "minTermMonths": 6,
+      "maxTermMonths": 60,
+      "requiredDocumentTypeIds": [1]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 400", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("Error message is returned", function () {
+          pm.expect(pm.response.json().message).to.include("Minimum amount");
+      });
+    language: text/javascript
+order: 4000

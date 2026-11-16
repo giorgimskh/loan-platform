@@ -2,51 +2,101 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Overview')}"></head>
 <body>
-<header th:replace="~{fragments :: sidebar('home')}"></header>
+<header th:replace="~{fragments :: topbar('home')}"></header>
 
 <main>
     <div th:replace="~{fragments :: flash}"></div>
 
+    <div class="title-row">
+        <div>
+            <h1>Overview</h1>
+            <p class="lead">What is happening with loan applications right now.</p>
+        </div>
+        <a class="button" th:href="@{/ui/applications/new}">New application</a>
+    </div>
+
+    <!-- "stats" is a StatisticsResponse, the same data as GET /api/applications/reports/statistics -->
+    <section class="stats" aria-label="Key numbers">
+        <a class="stat" th:href="@{/ui/applications}">
+            <span class="stat-label">All applications</span>
+            <span class="stat-value" th:text="${stats.totalApplications}">12</span>
+            <span class="stat-note"
+                  th:text="'Average amount ' + ${#numbers.formatDecimal(stats.averageAmount, 1, 'COMMA', 2, 'POINT')}">Average amount 5,000.00</span>
+        </a>
+        <a class="stat waiting" th:href="@{/ui/applications(status='SUBMITTED')}">
+            <span class="stat-label">Waiting for a decision</span>
+            <span class="stat-value" th:text="${stats.submitted}">3</span>
+            <span class="stat-note">Submitted, not decided yet</span>
+        </a>
+        <a class="stat approved" th:href="@{/ui/applications(status='APPROVED')}">
+            <span class="stat-label">Approved</span>
+            <span class="stat-value" th:text="${stats.approved}">7</span>
+            <span class="stat-note"
+                  th:text="${#numbers.formatDecimal(stats.totalApprovedAmount, 1, 'COMMA', 2, 'POINT')} + ' lent in total'">35,000.00 lent in total</span>
+        </a>
+        <a class="stat rejected" th:href="@{/ui/applications(status='REJECTED')}">
+            <span class="stat-label">Rejected</span>
+            <span class="stat-value" th:text="${stats.rejected}">2</span>
+            <span class="stat-note" th:text="'Approval rate ' + ${stats.approvalRate} + '%'">Approval rate 77.8%</span>
+        </a>
+    </section>
+
+    <div class="columns">
+        <!-- Chart 1: one bar split by status. Each part grows by its count (CSS flex-grow), no JavaScript needed. -->
+        <section class="card" aria-labelledby="by-status-title">
+            <h2 id="by-status-title">Applications by status</h2>
+            <th:block th:if="${stats.totalApplications > 0}">
+                <div class="split-bar" role="img"
+                     th:attr="aria-label=${stats.submitted} + ' submitted, ' + ${stats.approved} + ' approved, ' + ${stats.rejected} + ' rejected'">
+                    <span class="SUBMITTED" th:if="${stats.submitted > 0}" th:style="'flex-grow:' + ${stats.submitted}"></span>
+                    <span class="APPROVED" th:if="${stats.approved > 0}" th:style="'flex-grow:' + ${stats.approved}"></span>
+                    <span class="REJECTED" th:if="${stats.rejected > 0}" th:style="'flex-grow:' + ${stats.rejected}"></span>
+                </div>
+                <ul class="legend">
+                    <li><span class="dot SUBMITTED"></span>Submitted <strong th:text="${stats.submitted}">3</strong></li>
+                    <li><span class="dot APPROVED"></span>Approved <strong th:text="${stats.approved}">7</strong></li>
+                    <li><span class="dot REJECTED"></span>Rejected <strong th:text="${stats.rejected}">2</strong></li>
+                </ul>
+            </th:block>
+            <p class="empty-note" th:if="${stats.totalApplications == 0}">No applications yet. The chart appears with the first one.</p>
+        </section>
+
+        <!-- Chart 2: one bar per product. Its width is the product's share of all approved lending. -->
+        <section class="card" aria-labelledby="by-product-title">
+            <h2 id="by-product-title">Approved lending by product</h2>
+            <ul class="bars" th:if="${!#lists.isEmpty(totals)}">
+                <!-- th:each repeats the row for every element of the "totals" list from the Model -->
+                <li th:each="row : ${totals}">
+                    <span class="bar-label" th:text="${row.productName}">Consumer Loan</span>
+                    <span class="bar-value" th:text="${#numbers.formatDecimal(row.totalApprovedAmount, 1, 'COMMA', 2, 'POINT')}">12,000.00</span>
+                    <!-- the two numbers go to CSS as variables; CSS calculates width = value / max -->
+                    <span class="bar-track">
+                        <span class="bar-fill"
+                              th:style="'--value:' + ${row.totalApprovedAmount} + '; --max:' + ${stats.totalApprovedAmount}"></span>
+                    </span>
+                </li>
+            </ul>
+            <p class="empty-note" th:if="${#lists.isEmpty(totals)}">
+                Nothing has been approved yet. Approve an application and its amount is counted here.
+            </p>
+        </section>
+    </div>
+
     <!-- "waiting" is a Spring Data Page: totalElements = how many SUBMITTED applications exist in total -->
-    <h1 th:if="${waiting.totalElements > 0}"
-        th:text="${waiting.totalElements == 1} ? '1 application is waiting for a decision' : ${waiting.totalElements} + ' applications are waiting for a decision'">
-        3 applications are waiting for a decision
-    </h1>
-    <h1 th:if="${waiting.totalElements == 0}">No applications are waiting for a decision</h1>
-
-    <section th:if="${waiting.totalElements > 0}">
-        <table th:replace="~{fragments :: applicationTable(${waiting.content})}"></table>
-        <p class="after-table">
-            <a th:href="@{/ui/applications(status='SUBMITTED')}">See all waiting applications</a>
-        </p>
-    </section>
-
-    <section class="empty-state" th:if="${waiting.totalElements == 0}">
-        <p>Every application has been approved or rejected. New ones appear here as soon as they are submitted.</p>
-        <a class="button" th:href="@{/ui/applications/new}">Start an application</a>
-    </section>
-
     <section>
-        <h2>Approved lending by product</h2>
-        <p class="lead">The sum of all approved application amounts, per loan product.</p>
-        <table class="ledger narrow" th:if="${!#lists.isEmpty(totals)}">
-            <thead>
-            <tr>
-                <th>Product</th>
-                <th class="number">Total approved</th>
-            </tr>
-            </thead>
-            <tbody>
-            <!-- th:each repeats the row for every element of the "totals" list from the Model -->
-            <tr th:each="row : ${totals}">
-                <td th:text="${row.productName}">Consumer Loan</td>
-                <td class="number" th:text="${#numbers.formatDecimal(row.totalApprovedAmount, 1, 'COMMA', 2, 'POINT')}">12,000.00</td>
-            </tr>
-            </tbody>
-        </table>
-        <p class="empty-state" th:if="${#lists.isEmpty(totals)}">
-            Nothing has been approved yet. Approve an application and its amount is counted here.
-        </p>
+        <div class="section-head">
+            <h2>Waiting for a decision</h2>
+            <a th:if="${waiting.totalElements > 0}" th:href="@{/ui/applications(status='SUBMITTED')}">See all waiting applications</a>
+        </div>
+
+        <th:block th:if="${waiting.totalElements > 0}">
+            <div th:replace="~{fragments :: applicationTable(${waiting.content})}"></div>
+        </th:block>
+
+        <div class="empty-state" th:if="${waiting.totalElements == 0}">
+            <p>No applications are waiting for a decision. New ones appear here as soon as they are submitted.</p>
+            <a class="button quiet" th:href="@{/ui/applications/new}">Start an application</a>
+        </div>
     </section>
 </main>
 </body>

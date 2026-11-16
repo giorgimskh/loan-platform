@@ -10,23 +10,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap">
     <!-- @{...} builds a URL; the file is src/main/resources/static/css/style.css -->
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 
 <body>
 
-<!-- The left sidebar. "active" is the name of the current page, so its link can be highlighted. -->
-<header class="sidebar" th:fragment="sidebar(active)">
-    <a class="brand" th:href="@{/ui}">Loan Platform</a>
-    <nav aria-label="Main">
-        <a th:href="@{/ui}" th:classappend="${active == 'home'} ? 'current'">Overview</a>
-        <a th:href="@{/ui/applications}" th:classappend="${active == 'applications'} ? 'current'">Applications</a>
-        <a th:href="@{/ui/customers}" th:classappend="${active == 'customers'} ? 'current'">Customers</a>
-        <a th:href="@{/ui/products}" th:classappend="${active == 'products'} ? 'current'">Products</a>
-    </nav>
-    <p class="sidebar-note">Test website. It uses the same services and rules as the REST API.</p>
+<!-- The bar at the top of every page. "active" is the name of the current page, so its link can be highlighted. -->
+<header class="topbar" th:fragment="topbar(active)">
+    <div class="topbar-inner">
+        <a class="brand" th:href="@{/ui}">
+            <span class="brand-mark" aria-hidden="true">L</span>
+            <span>Loan Platform</span>
+        </a>
+        <nav aria-label="Main">
+            <a th:href="@{/ui}" th:classappend="${active == 'home'} ? 'current'">Overview</a>
+            <a th:href="@{/ui/applications}" th:classappend="${active == 'applications'} ? 'current'">Applications</a>
+            <a th:href="@{/ui/customers}" th:classappend="${active == 'customers'} ? 'current'">Customers</a>
+            <a th:href="@{/ui/products}" th:classappend="${active == 'products'} ? 'current'">Products</a>
+            <a th:href="@{/ui/calculator}" th:classappend="${active == 'calculator'} ? 'current'">Calculator</a>
+        </nav>
+        <!-- Swagger UI: every REST endpoint on one page, opened in a new tab -->
+        <a class="docs-link" th:href="@{/swagger-ui.html}" target="_blank" rel="noopener">API docs</a>
+    </div>
 </header>
 
 <!-- Messages set by WebController before a redirect (flash attributes). role="status" makes screen readers announce them. -->
@@ -56,30 +63,64 @@
       th:text="${#strings.capitalize(#strings.toLowerCase(value))}">Submitted</span>
 
 <!-- A table of applications, used by several pages. "applications" is a list of LoanApplicationResponse. -->
-<table class="ledger" th:fragment="applicationTable(applications)">
-    <thead>
-    <tr>
-        <th>Application</th>
-        <th>Customer</th>
-        <th>Product</th>
-        <th class="number">Amount</th>
-        <th class="number">Term</th>
-        <th>Status</th>
-        <th>Submitted on</th>
-    </tr>
-    </thead>
-    <tbody>
-    <tr th:each="a : ${applications}">
-        <td><a th:href="@{/ui/applications/{id}(id=${a.id})}" th:text="'No. ' + ${a.id}">No. 1</a></td>
-        <td th:text="${a.customerFullName}">Ana Beridze</td>
-        <td th:text="${a.loanProductName}">Consumer Loan</td>
-        <td class="number" th:text="${#numbers.formatDecimal(a.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</td>
-        <td class="number" th:text="${a.termMonths} + ' mo'">12 mo</td>
-        <td><span th:replace="~{fragments :: status(${a.status})}"></span></td>
-        <td th:text="${#temporals.format(a.createdAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</td>
-    </tr>
-    </tbody>
-</table>
+<div class="table-card" th:fragment="applicationTable(applications)">
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Application</th>
+            <th>Customer</th>
+            <th>Product</th>
+            <th class="number">Amount</th>
+            <th class="number">Term</th>
+            <th>Status</th>
+            <th>Submitted on</th>
+            <th><span class="visually-hidden">Actions</span></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="a : ${applications}">
+            <td><a class="strong-link" th:href="@{/ui/applications/{id}(id=${a.id})}" th:text="'No. ' + ${a.id}">No. 1</a></td>
+            <td th:text="${a.customerFullName}">Ana Beridze</td>
+            <td th:text="${a.loanProductName}">Consumer Loan</td>
+            <td class="number" th:text="${#numbers.formatDecimal(a.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</td>
+            <td class="number" th:text="${a.termMonths} + ' mo'">12 mo</td>
+            <td><span th:replace="~{fragments :: status(${a.status})}"></span></td>
+            <td class="muted" th:text="${#temporals.format(a.createdAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</td>
+            <td class="row-actions">
+                <!-- <details> is a built-in HTML element that opens and closes on click: a menu without JavaScript.
+                     Each entry is shown only when the rules allow it for this application's status. -->
+                <details class="menu">
+                    <summary th:attr="aria-label='Actions for application ' + ${a.id}">Actions</summary>
+                    <div class="menu-panel">
+                        <a th:href="@{/ui/applications/{id}(id=${a.id})}">Open</a>
+                        <a th:if="${a.status.name() == 'SUBMITTED'}"
+                           th:href="@{/ui/applications/{id}/edit(id=${a.id})}">Edit</a>
+
+                        <form th:if="${a.status.name() != 'APPROVED'}"
+                              th:action="@{/ui/applications/{id}/approve(id=${a.id})}" method="post">
+                            <button type="submit" class="link">Approve</button>
+                        </form>
+
+                        <form class="menu-reject" th:if="${a.status.name() != 'REJECTED'}"
+                              th:action="@{/ui/applications/{id}/reject(id=${a.id})}" method="post" novalidate>
+                            <input type="text" name="decisionComment" autocomplete="off" maxlength="255"
+                                   placeholder="Reason for rejection"
+                                   th:attr="aria-label='Reason for rejecting application ' + ${a.id}">
+                            <button type="submit" class="link danger">Reject</button>
+                        </form>
+
+                        <form th:if="${a.status.name() == 'SUBMITTED'}"
+                              th:action="@{/ui/applications/{id}/delete(id=${a.id})}" method="post"
+                              onsubmit="return confirm('Cancel this application? It and its documents are deleted.')">
+                            <button type="submit" class="link danger">Cancel application</button>
+                        </form>
+                    </div>
+                </details>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
 
 </body>
 </html>

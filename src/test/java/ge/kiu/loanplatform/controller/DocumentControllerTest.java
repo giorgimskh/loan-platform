@@ -5,6 +5,8 @@ import ge.kiu.loanplatform.exception.BusinessRuleException;
 import ge.kiu.loanplatform.exception.ConflictException;
 import ge.kiu.loanplatform.exception.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.DocumentService;
+import ge.kiu.loanplatform.dto.DocumentFile;
+import org.springframework.core.io.ByteArrayResource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,6 +23,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 // Web layer test: starts only this controller + GlobalExceptionHandler (no database, no real files).
@@ -141,5 +150,56 @@ class DocumentControllerTest {
                         .param("documentTypeId", "2"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
+    }
+
+    // ---------- download ----------
+
+    @Test
+    void download_returnsTheFileWithItsNameAndType() throws Exception {
+        // ByteArrayResource = a "file" that only exists in memory, enough for a test
+        when(documentService.download(10L))
+                .thenReturn(new DocumentFile("id-card.pdf", new ByteArrayResource("fake pdf content".getBytes())));
+
+        mockMvc.perform(get("/api/documents/10/download"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().string("Content-Disposition", containsString("attachment")))
+                .andExpect(header().string("Content-Disposition", containsString("id-card.pdf")))
+                .andExpect(content().bytes("fake pdf content".getBytes()));
+    }
+
+    @Test
+    void download_returns404_whenDocumentDoesNotExist() throws Exception {
+        when(documentService.download(99L)).thenThrow(new ResourceNotFoundException("Document with id 99 not found"));
+
+        mockMvc.perform(get("/api/documents/99/download"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Document with id 99 not found"));
+    }
+
+    // ---------- delete ----------
+
+    @Test
+    void delete_returns204_whenDocumentIsDeleted() throws Exception {
+        mockMvc.perform(delete("/api/documents/10"))
+                .andExpect(status().isNoContent());
+
+        verify(documentService).delete(10L);
+    }
+
+    @Test
+    void delete_returns409_whenApplicationIsAlreadyDecided() throws Exception {
+        doThrow(new ConflictException("Document with id 10 belongs to an application that is APPROVED and cannot be deleted"))
+                .when(documentService).delete(10L);
+
+        mockMvc.perform(delete("/api/documents/10"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void delete_returns400_whenIdIsNegative() throws Exception {
+        mockMvc.perform(delete("/api/documents/-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.id").value("Id must be a positive number"));
     }
 }
