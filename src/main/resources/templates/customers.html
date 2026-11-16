@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Customers')}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+
+<main>
+    <h1>Customers</h1>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Id</th>
+            <th>Full name</th>
+            <th>Email</th>
+            <th>Personal number</th>
+            <th>Phone</th>
+            <th>Applications</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${customers}">
+            <td th:text="${c.id}">1</td>
+            <td th:text="${c.fullName}">Ana Beridze</td>
+            <td th:text="${c.email}">ana@mail.com</td>
+            <td th:text="${c.personalNumber}">01234567890</td>
+            <td th:text="${c.phone}">555123456</td>
+            <td>
+                <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='SUBMITTED')}">submitted</a>
+                <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='APPROVED')}">approved</a>
+                <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='REJECTED')}">rejected</a>
+            </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(customers)}">
+            <td colspan="6" class="empty">No customers yet.</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h2>New customer</h2>
+    <!-- The input names must match the fields of CustomerRequest.
+         novalidate: the browser does not check anything, so the server validation can be seen. -->
+    <form class="form" th:action="@{/ui/customers}" method="post" novalidate>
+        <label>Full name
+            <input type="text" name="fullName" placeholder="Ana Beridze">
+        </label>
+        <label>Email
+            <input type="text" name="email" placeholder="ana@mail.com">
+        </label>
+        <label>Personal number (11 digits)
+            <input type="text" name="personalNumber" placeholder="01234567890">
+        </label>
+        <label>Phone (optional)
+            <input type="text" name="phone" placeholder="555123456">
+        </label>
+        <button type="submit">Create customer</button>
+    </form>
+</main>
+</body>
+</html>

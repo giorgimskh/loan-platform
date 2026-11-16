@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<!-- Shown by WebController.handleServiceError when a service throws one of our custom exceptions -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Error')}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+
+<main>
+    <h1>The request was refused</h1>
+    <div class="alert error">
+        <strong th:text="${errorType}">ConflictException</strong>
+        <p th:text="${errorMessage}">Application with id 1 is APPROVED and cannot be approved</p>
+    </div>
+    <p><a href="javascript:history.back()">&laquo; Go back</a> or <a th:href="@{/ui}">go to the home page</a></p>
+</main>
+</body>
+</html>

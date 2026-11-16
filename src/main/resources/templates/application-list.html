@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<!-- Shows a plain list of applications: used for "applications of a customer" and for the search result -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${title})}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+
+<main>
+    <h1 th:text="${title}">Applications</h1>
+
+    <table th:replace="~{fragments :: applicationTable(${applications})}"></table>
+
+    <p><a th:href="@{/ui/applications}">&laquo; All applications</a></p>
+</main>
+</body>
+</html>

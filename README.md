@@ -70,12 +70,15 @@ The settings are in `src/main/resources/application.properties`.
 | POST | `/api/customers` | Create a customer | 201 |
 | GET | `/api/customers` | List all customers | 200 |
 | GET | `/api/customers/{id}` | Get one customer | 200 |
+| GET | `/api/customers/{id}/applications?status=` | List one customer's applications with the given status | 200 |
 | GET | `/api/products` | List all loan products | 200 |
 | POST | `/api/products` | Create a loan product | 201 |
 | PUT | `/api/products/{id}` | Update a loan product | 200 |
 | DELETE | `/api/products/{id}` | Delete a loan product | 204 |
 | POST | `/api/applications` | Create a loan application | 201 |
 | GET | `/api/applications?status=&page=&size=&sort=` | List applications (paginated, sortable, optional status filter) | 200 |
+| GET | `/api/applications/search?productName=&amountAbove=` | List applications of one product with an amount above a value | 200 |
+| GET | `/api/applications/reports/approved-totals` | Report: total approved amount per product | 200 |
 | GET | `/api/applications/{id}` | Get one application with its documents | 200 |
 | PUT | `/api/applications/{id}/approve` | Approve an application | 200 |
 | PUT | `/api/applications/{id}/reject` | Reject an application (body: `decisionComment`) | 200 |
@@ -114,6 +117,23 @@ Every error is returned as JSON in the same format by `GlobalExceptionHandler` (
 | 404 Not Found | Customer, product, application or document type does not exist |
 | 405 Method Not Allowed | The URL exists but not for this HTTP method |
 | 409 Conflict | Duplicate email, personal number or product name; application is not `SUBMITTED` (rule 4); product still has applications |
+
+## Test website (Thymeleaf)
+
+With the app running, open `http://localhost:8080/ui` in a browser.
+
+The website is a set of Thymeleaf pages served by `WebController` (`@Controller`). It calls the same services
+as the REST API, so the same validation and business rules apply. It does not go through the `/api` endpoints.
+
+| Page | What you can do |
+|------|-----------------|
+| `/ui` | Home page with the report "total approved amount per product" |
+| `/ui/customers` | List and create customers; open one customer's applications by status |
+| `/ui/products` | List, create and delete loan products |
+| `/ui/applications` | Paginated list with a status filter, new application form, search by product and amount |
+| `/ui/applications/{id}` | Details, approve / reject / cancel, upload documents |
+
+Templates are in `src/main/resources/templates`, the stylesheet in `src/main/resources/static/css/style.css`.
 
 ## Testing with Postman
 

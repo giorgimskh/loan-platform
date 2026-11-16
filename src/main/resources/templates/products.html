@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Products')}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+
+<main>
+    <h1>Loan products</h1>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Id</th>
+            <th>Name</th>
+            <th class="number">Interest</th>
+            <th class="number">Amount range</th>
+            <th class="number">Term range</th>
+            <th>Required documents</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="p : ${products}">
+            <td th:text="${p.id}">1</td>
+            <td th:text="${p.name}">Consumer Loan</td>
+            <td class="number" th:text="${p.interestRate} + ' %'">14.50 %</td>
+            <td class="number" th:text="${p.minAmount} + ' - ' + ${p.maxAmount}">500 - 20000</td>
+            <td class="number" th:text="${p.minTermMonths} + ' - ' + ${p.maxTermMonths} + ' mo'">3 - 48 mo</td>
+            <td>
+                <span class="tag" th:each="d : ${p.requiredDocuments}" th:text="${d.id} + ' ' + ${d.name}">1 ID Card</span>
+            </td>
+            <td>
+                <!-- an HTML form cannot send DELETE, so the website uses POST .../delete -->
+                <form th:action="@{/ui/products/{id}/delete(id=${p.id})}" method="post">
+                    <button type="submit" class="danger small">Delete</button>
+                </form>
+            </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(products)}">
+            <td colspan="7" class="empty">No products yet.</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <h2>New product</h2>
+    <!-- The input names must match the fields of LoanProductRequest -->
+    <form class="form" th:action="@{/ui/products}" method="post" novalidate>
+        <label>Name
+            <input type="text" name="name" placeholder="Auto Loan">
+        </label>
+        <label>Interest rate (%)
+            <input type="text" name="interestRate" placeholder="11.5">
+        </label>
+        <label>Minimum amount
+            <input type="text" name="minAmount" placeholder="1000">
+        </label>
+        <label>Maximum amount
+            <input type="text" name="maxAmount" placeholder="50000">
+        </label>
+        <label>Minimum term (months)
+            <input type="text" name="minTermMonths" placeholder="6">
+        </label>
+        <label>Maximum term (months)
+            <input type="text" name="maxTermMonths" placeholder="60">
+        </label>
+        <label>Required document type ids (comma separated, may be empty)
+            <input type="text" name="requiredDocumentTypeIds" placeholder="1,2">
+        </label>
+        <button type="submit">Create product</button>
+    </form>
+</main>
+</body>
+</html>

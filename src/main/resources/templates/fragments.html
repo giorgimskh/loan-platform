@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<!-- Shared pieces of every page. Other templates include them with th:replace="~{fragments :: name}". -->
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' - Loan Platform'">Loan Platform</title>
+    <!-- @{...} builds a URL; the file is src/main/resources/static/css/style.css -->
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+
+<header th:fragment="header">
+    <nav>
+        <a class="brand" th:href="@{/ui}">Loan Platform</a>
+        <a th:href="@{/ui/customers}">Customers</a>
+        <a th:href="@{/ui/products}">Products</a>
+        <a th:href="@{/ui/applications}">Applications</a>
+    </nav>
+
+    <!-- flash attributes set by WebController before a redirect -->
+    <p class="alert success" th:if="${message}" th:text="${message}">Saved</p>
+    <ul class="alert error" th:if="${errors}">
+        <li th:each="error : ${errors}" th:text="${error}">Validation message</li>
+    </ul>
+</header>
+
+<!-- A table of applications, used by several pages. "applications" is a list of LoanApplicationResponse. -->
+<table th:fragment="applicationTable(applications)">
+    <thead>
+    <tr>
+        <th>Id</th>
+        <th>Customer</th>
+        <th>Product</th>
+        <th class="number">Amount</th>
+        <th class="number">Term</th>
+        <th>Status</th>
+        <th>Created</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="a : ${applications}">
+        <td><a th:href="@{/ui/applications/{id}(id=${a.id})}" th:text="${a.id}">1</a></td>
+        <td th:text="${a.customerFullName}">Ana Beridze</td>
+        <td th:text="${a.loanProductName}">Consumer Loan</td>
+        <td class="number" th:text="${a.amount}">5000.00</td>
+        <td class="number" th:text="${a.termMonths} + ' mo'">12 mo</td>
+        <td><span th:class="'badge ' + ${a.status}" th:text="${a.status}">SUBMITTED</span></td>
+        <td th:text="${#temporals.format(a.createdAt, 'yyyy-MM-dd HH:mm')}">2026-01-01 10:00</td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(applications)}">
+        <td colspan="7" class="empty">No applications found.</td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>

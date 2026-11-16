@@ -1,0 +1,242 @@
+package ge.kiu.loanplatform.controller;
+
+import ge.kiu.loanplatform.dto.CustomerRequest;
+import ge.kiu.loanplatform.dto.CustomerResponse;
+import ge.kiu.loanplatform.dto.DocumentResponse;
+import ge.kiu.loanplatform.dto.LoanApplicationRequest;
+import ge.kiu.loanplatform.dto.LoanApplicationResponse;
+import ge.kiu.loanplatform.dto.LoanProductRequest;
+import ge.kiu.loanplatform.dto.LoanProductResponse;
+import ge.kiu.loanplatform.dto.RejectRequest;
+import ge.kiu.loanplatform.entity.ApplicationStatus;
+import ge.kiu.loanplatform.exception.BusinessRuleException;
+import ge.kiu.loanplatform.exception.ConflictException;
+import ge.kiu.loanplatform.exception.ResourceNotFoundException;
+import ge.kiu.loanplatform.service.CustomerService;
+import ge.kiu.loanplatform.service.DocumentService;
+import ge.kiu.loanplatform.service.LoanApplicationService;
+import ge.kiu.loanplatform.service.LoanProductService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.propertyeditors.StringTrimmerEditor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.ObjectError;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+/**
+ * The small test website (Thymeleaf pages) under /ui.
+ *
+ * Difference from the other controllers:
+ * - @Controller (not @RestController): a method returns the NAME of an HTML template
+ *   from src/main/resources/templates, not JSON.
+ * - It calls the same services as the REST API, so all business rules and
+ *   validation annotations are exactly the same.
+ * - HTML forms can only send GET and POST, so approve/reject/delete are POST here.
+ */
+@Controller
+@RequestMapping("/ui")
+@RequiredArgsConstructor
+public class WebController {
+
+    private final CustomerService customerService;
+    private final LoanProductService loanProductService;
+    private final LoanApplicationService loanApplicationService;
+    private final DocumentService documentService;
+
+    // An empty form field arrives as "" (empty text). This turns "" into null,
+    // so an empty optional field (phone) is treated as "not sent", like in JSON.
+    @InitBinder
+    public void initBinder(WebDataBinder binder) {
+        binder.registerCustomEditor(String.class, new StringTrimmerEditor(true));
+    }
+
+    // ---------- home ----------
+
+    @GetMapping
+    public String home(Model model) {
+        // Model = the data the template can read, e.g. ${totals}
+        model.addAttribute("totals", loanApplicationService.getApprovedTotalsPerProduct());
+        return "home"; // templates/home.html
+    }
+
+    // ---------- customers ----------
+
+    @GetMapping("/customers")
+    public String customers(Model model) {
+        model.addAttribute("customers", customerService.getAll());
+        return "customers";
+    }
+
+    // @ModelAttribute builds the DTO from the form fields; @Valid checks its annotations;
+    // BindingResult receives the validation errors instead of an exception being thrown.
+    @PostMapping("/customers")
+    public String createCustomer(@Valid @ModelAttribute CustomerRequest form, BindingResult result,
+                                 RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            redirect.addFlashAttribute("errors", messages(result));
+            return "redirect:/ui/customers";
+        }
+        CustomerResponse created = customerService.create(form);
+        // flash attribute = survives exactly one redirect, then disappears
+        redirect.addFlashAttribute("message", "Customer created with id " + created.id());
+        return "redirect:/ui/customers";
+    }
+
+    @GetMapping("/customers/{id}/applications")
+    public String customerApplications(@PathVariable Long id, @RequestParam ApplicationStatus status, Model model) {
+        model.addAttribute("title", status + " applications of customer " + id);
+        model.addAttribute("applications", loanApplicationService.getByCustomerAndStatus(id, status));
+        return "application-list";
+    }
+
+    // ---------- products ----------
+
+    @GetMapping("/products")
+    public String products(Model model) {
+        model.addAttribute("products", loanProductService.getAll());
+        return "products";
+    }
+
+    @PostMapping("/products")
+    public String createProduct(@Valid @ModelAttribute LoanProductRequest form, BindingResult result,
+                                RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            redirect.addFlashAttribute("errors", messages(result));
+            return "redirect:/ui/products";
+        }
+        LoanProductResponse created = loanProductService.create(form);
+        redirect.addFlashAttribute("message", "Product created with id " + created.id());
+        return "redirect:/ui/products";
+    }
+
+    @PostMapping("/products/{id}/delete")
+    public String deleteProduct(@PathVariable Long id, RedirectAttributes redirect) {
+        loanProductService.delete(id);
+        redirect.addFlashAttribute("message", "Product " + id + " deleted");
+        return "redirect:/ui/products";
+    }
+
+    // ---------- applications ----------
+
+    // Same pagination and sorting as GET /api/applications, e.g. /ui/applications?status=SUBMITTED&page=1
+    @GetMapping("/applications")
+    public String applications(
+            @RequestParam(required = false) ApplicationStatus status,
+            @PageableDefault(size = 5, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            Model model) {
+        model.addAttribute("page", loanApplicationService.getAll(status, pageable));
+        model.addAttribute("status", status);
+        model.addAttribute("statuses", ApplicationStatus.values());
+        // for the two dropdowns of the "new application" form
+        model.addAttribute("customers", customerService.getAll());
+        model.addAttribute("products", loanProductService.getAll());
+        return "applications";
+    }
+
+    @PostMapping("/applications")
+    public String createApplication(@Valid @ModelAttribute LoanApplicationRequest form, BindingResult result,
+                                    RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            redirect.addFlashAttribute("errors", messages(result));
+            return "redirect:/ui/applications";
+        }
+        LoanApplicationResponse created = loanApplicationService.create(form);
+        redirect.addFlashAttribute("message", "Application created with id " + created.id());
+        return "redirect:/ui/applications/" + created.id();
+    }
+
+    @GetMapping("/applications/search")
+    public String searchApplications(@RequestParam String productName, @RequestParam BigDecimal amountAbove,
+                                     Model model) {
+        model.addAttribute("title", "Applications for " + productName + " above " + amountAbove);
+        model.addAttribute("applications", loanApplicationService.searchByProductAndAmount(productName, amountAbove));
+        return "application-list";
+    }
+
+    @GetMapping("/applications/{id}")
+    public String applicationDetail(@PathVariable Long id, Model model) {
+        LoanApplicationResponse application = loanApplicationService.getById(id);
+        // not named "application": that name is reserved by Thymeleaf
+        model.addAttribute("loanApplication", application);
+        // show which documents this application's product requires (a hint for the upload form)
+        for (LoanProductResponse product : loanProductService.getAll()) {
+            if (product.id().equals(application.loanProductId())) {
+                model.addAttribute("requiredDocuments", product.requiredDocuments());
+            }
+        }
+        return "application-detail";
+    }
+
+    @PostMapping("/applications/{id}/approve")
+    public String approve(@PathVariable Long id, RedirectAttributes redirect) {
+        loanApplicationService.approve(id);
+        redirect.addFlashAttribute("message", "Application approved");
+        return "redirect:/ui/applications/" + id;
+    }
+
+    @PostMapping("/applications/{id}/reject")
+    public String reject(@PathVariable Long id, @Valid @ModelAttribute RejectRequest form, BindingResult result,
+                         RedirectAttributes redirect) {
+        if (result.hasErrors()) {
+            redirect.addFlashAttribute("errors", messages(result));
+            return "redirect:/ui/applications/" + id;
+        }
+        loanApplicationService.reject(id, form);
+        redirect.addFlashAttribute("message", "Application rejected");
+        return "redirect:/ui/applications/" + id;
+    }
+
+    @PostMapping("/applications/{id}/delete")
+    public String cancel(@PathVariable Long id, RedirectAttributes redirect) {
+        loanApplicationService.delete(id);
+        redirect.addFlashAttribute("message", "Application " + id + " cancelled");
+        return "redirect:/ui/applications";
+    }
+
+    // The form uses enctype="multipart/form-data", the same as the REST upload endpoint
+    @PostMapping("/applications/{id}/documents")
+    public String uploadDocument(@PathVariable Long id, @RequestParam MultipartFile file,
+                                 @RequestParam Long documentTypeId, RedirectAttributes redirect) {
+        DocumentResponse uploaded = documentService.upload(id, file, documentTypeId);
+        redirect.addFlashAttribute("message", "Uploaded " + uploaded.originalFileName());
+        return "redirect:/ui/applications/" + id;
+    }
+
+    // ---------- errors ----------
+
+    // When a service throws one of our custom exceptions on a /ui page, show an HTML page with the message.
+    // An @ExceptionHandler inside a controller wins over the global @RestControllerAdvice (which returns JSON).
+    @ExceptionHandler({ResourceNotFoundException.class, BusinessRuleException.class, ConflictException.class})
+    public String handleServiceError(RuntimeException ex, Model model) {
+        model.addAttribute("errorType", ex.getClass().getSimpleName());
+        model.addAttribute("errorMessage", ex.getMessage());
+        return "error-message";
+    }
+
+    // ---------- helper ----------
+
+    // All validation messages of a form as plain text, e.g. ["Full name is required", ...]
+    private List<String> messages(BindingResult result) {
+        return result.getAllErrors().stream()
+                .map(ObjectError::getDefaultMessage)
+                .toList();
+    }
+}

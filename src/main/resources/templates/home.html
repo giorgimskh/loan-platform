@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Home')}"></head>
+<body>
+<header th:replace="~{fragments :: header}"></header>
+
+<main>
+    <h1>Loan Platform</h1>
+    <p>A small test website for the loan application system. It uses the same services and rules as the REST API.</p>
+
+    <div class="cards">
+        <a class="card" th:href="@{/ui/customers}">
+            <h2>Customers</h2>
+            <p>Register customers and see their applications.</p>
+        </a>
+        <a class="card" th:href="@{/ui/products}">
+            <h2>Products</h2>
+            <p>Create and delete loan products.</p>
+        </a>
+        <a class="card" th:href="@{/ui/applications}">
+            <h2>Applications</h2>
+            <p>Apply, upload documents, approve, reject or cancel.</p>
+        </a>
+    </div>
+
+    <h2>Report: total approved amount per product</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Product</th>
+            <th class="number">Total approved</th>
+        </tr>
+        </thead>
+        <tbody>
+        <!-- th:each repeats the row for every element of the "totals" list from the Model -->
+        <tr th:each="row : ${totals}">
+            <td th:text="${row.productName}">Consumer Loan</td>
+            <td class="number" th:text="${row.totalApprovedAmount}">12000.00</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(totals)}">
+            <td colspan="2" class="empty">No approved applications yet.</td>
+        </tr>
+        </tbody>
+    </table>
+</main>
+</body>
+</html>
