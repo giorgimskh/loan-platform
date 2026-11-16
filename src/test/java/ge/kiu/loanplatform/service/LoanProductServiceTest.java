@@ -95,6 +95,27 @@ class LoanProductServiceTest {
     }
 
     @Test
+    void getById_returnsTheProduct() {
+        LoanProduct existing = new LoanProduct();
+        existing.setId(3L);
+        existing.setName("Auto Loan");
+        when(loanProductRepository.findById(3L)).thenReturn(Optional.of(existing));
+
+        LoanProductResponse response = loanProductService.getById(3L);
+
+        assertThat(response.id()).isEqualTo(3L);
+        assertThat(response.name()).isEqualTo("Auto Loan");
+    }
+
+    @Test
+    void getById_throwsNotFound_whenProductDoesNotExist() {
+        when(loanProductRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> loanProductService.getById(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
     void delete_throwsConflict_whenProductHasApplications() {
         LoanProduct existing = new LoanProduct();
         existing.setId(1L);

@@ -2,59 +2,76 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Customers')}"></head>
 <body>
-<header th:replace="~{fragments :: header}"></header>
+<header th:replace="~{fragments :: sidebar('customers')}"></header>
 
 <main>
-    <h1>Customers</h1>
+    <div th:replace="~{fragments :: flash}"></div>
 
-    <table>
-        <thead>
-        <tr>
-            <th>Id</th>
-            <th>Full name</th>
-            <th>Email</th>
-            <th>Personal number</th>
-            <th>Phone</th>
-            <th>Applications</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="c : ${customers}">
-            <td th:text="${c.id}">1</td>
-            <td th:text="${c.fullName}">Ana Beridze</td>
-            <td th:text="${c.email}">ana@mail.com</td>
-            <td th:text="${c.personalNumber}">01234567890</td>
-            <td th:text="${c.phone}">555123456</td>
-            <td>
-                <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='SUBMITTED')}">submitted</a>
-                <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='APPROVED')}">approved</a>
-                <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='REJECTED')}">rejected</a>
-            </td>
-        </tr>
-        <tr th:if="${#lists.isEmpty(customers)}">
-            <td colspan="6" class="empty">No customers yet.</td>
-        </tr>
-        </tbody>
-    </table>
+    <h1>Customers <span class="count" th:text="${#lists.size(customers)}">3</span></h1>
 
-    <h2>New customer</h2>
-    <!-- The input names must match the fields of CustomerRequest.
-         novalidate: the browser does not check anything, so the server validation can be seen. -->
-    <form class="form" th:action="@{/ui/customers}" method="post" novalidate>
-        <label>Full name
-            <input type="text" name="fullName" placeholder="Ana Beridze">
-        </label>
-        <label>Email
-            <input type="text" name="email" placeholder="ana@mail.com">
-        </label>
-        <label>Personal number (11 digits)
-            <input type="text" name="personalNumber" placeholder="01234567890">
-        </label>
-        <label>Phone (optional)
-            <input type="text" name="phone" placeholder="555123456">
-        </label>
-        <button type="submit">Create customer</button>
-    </form>
+    <!-- Two columns: the list on the left, the registration form on the right (it stays visible while scrolling) -->
+    <div class="split">
+
+        <section aria-label="Registered customers">
+            <!-- One card per customer -->
+            <ul class="people" th:if="${!#lists.isEmpty(customers)}">
+                <li th:each="c : ${customers}">
+                    <!-- the first letter of the name as a simple avatar -->
+                    <span class="avatar" aria-hidden="true" th:text="${#strings.substring(c.fullName, 0, 1)}">A</span>
+
+                    <div class="person">
+                        <p class="person-name">
+                            <span th:text="${c.fullName}">Ana Beridze</span>
+                            <span class="person-id" th:text="'Customer ' + ${c.id}">Customer 1</span>
+                        </p>
+                        <dl class="person-facts">
+                            <div>
+                                <dt>Email</dt>
+                                <dd th:text="${c.email}">ana@mail.com</dd>
+                            </div>
+                            <div>
+                                <dt>Personal number</dt>
+                                <dd class="digits" th:text="${c.personalNumber}">01234567890</dd>
+                            </div>
+                            <div>
+                                <dt>Phone</dt>
+                                <dd class="digits" th:text="${c.phone} ?: 'Not given'">555123456</dd>
+                            </div>
+                        </dl>
+                        <p class="person-links">
+                            <span>Applications:</span>
+                            <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='SUBMITTED')}">Submitted</a>
+                            <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='APPROVED')}">Approved</a>
+                            <a th:href="@{/ui/customers/{id}/applications(id=${c.id}, status='REJECTED')}">Rejected</a>
+                        </p>
+                    </div>
+
+                    <a class="button quiet" th:href="@{/ui/applications/new(customerId=${c.id})}">Start application</a>
+                </li>
+            </ul>
+
+            <div class="empty-state" th:if="${#lists.isEmpty(customers)}">
+                <p>No customers yet. Register the first one with the form on this page.</p>
+            </div>
+        </section>
+
+        <aside class="panel sticky" aria-labelledby="register-title">
+            <h2 id="register-title">Register a customer</h2>
+
+            <!-- The service refused the request, e.g. the email is already used -->
+            <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Email already exists</p>
+
+            <!-- novalidate: the browser does not check anything, so the server validation can be seen.
+                 The field names must match the fields of CustomerRequest. -->
+            <form th:action="@{/ui/customers}" method="post" novalidate>
+                <div th:replace="~{fragments :: field('fullName', 'Full name', 'Letters, spaces, dots, apostrophes and hyphens')}"></div>
+                <div th:replace="~{fragments :: field('email', 'Email', 'Must be unique, for example ana@mail.com')}"></div>
+                <div th:replace="~{fragments :: field('personalNumber', 'Personal number', 'Exactly 11 digits, must be unique')}"></div>
+                <div th:replace="~{fragments :: field('phone', 'Phone (optional)', '9 to 15 digits, may start with +')}"></div>
+                <button type="submit">Register customer</button>
+            </form>
+        </aside>
+    </div>
 </main>
 </body>
 </html>

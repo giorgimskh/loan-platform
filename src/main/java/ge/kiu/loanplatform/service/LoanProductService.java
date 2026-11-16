@@ -33,6 +33,12 @@ public class LoanProductService {
                 .toList();
     }
 
+    // used by the website to fill the "edit product" form
+    @Transactional(readOnly = true)
+    public LoanProductResponse getById(Long id) {
+        return LoanProductResponse.from(findProduct(id));
+    }
+
     @Transactional
     public LoanProductResponse create(LoanProductRequest request) {
         if (loanProductRepository.existsByName(request.name())) {

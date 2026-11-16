@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('New application')}"></head>
+<body>
+<header th:replace="~{fragments :: sidebar('applications')}"></header>
+
+<main>
+    <p class="back"><a th:href="@{/ui/applications}">Back to applications</a></p>
+
+    <h1>New application</h1>
+
+    <!-- The service refused the request, e.g. the amount is outside the product's range (rule 1) -->
+    <p class="notice error" role="alert" th:if="${formError}" th:text="${formError}">Amount must be between 500 and 20000</p>
+
+    <!-- The field names must match the fields of LoanApplicationRequest -->
+    <form class="panel form-page" th:action="@{/ui/applications}" method="post" novalidate>
+
+        <div class="field" th:classappend="${fieldErrors?.get('customerId') != null} ? 'invalid'">
+            <label for="customerId">Customer</label>
+            <select id="customerId" name="customerId" aria-describedby="customerId-help">
+                <option value="">Choose a customer</option>
+                <!-- th:selected keeps the earlier choice when the form is shown again -->
+                <option th:each="c : ${customers}" th:value="${c.id}"
+                        th:text="${c.fullName} + ' (customer ' + ${c.id} + ')'"
+                        th:selected="${values?.get('customerId') == c.id.toString()}">Ana Beridze (customer 1)</option>
+            </select>
+            <p class="help" id="customerId-help" th:text="${fieldErrors?.get('customerId')} ?: 'Only registered customers can apply'">Hint</p>
+        </div>
+
+        <div class="field" th:classappend="${fieldErrors?.get('loanProductId') != null} ? 'invalid'">
+            <label for="loanProductId">Loan product</label>
+            <select id="loanProductId" name="loanProductId" aria-describedby="loanProductId-help">
+                <option value="">Choose a product</option>
+                <option th:each="p : ${products}" th:value="${p.id}"
+                        th:text="${p.name} + ': ' + ${#numbers.formatDecimal(p.minAmount, 1, 'COMMA', 0, 'POINT')} + ' to ' + ${#numbers.formatDecimal(p.maxAmount, 1, 'COMMA', 0, 'POINT')} + ', ' + ${p.minTermMonths} + ' to ' + ${p.maxTermMonths} + ' months'"
+                        th:selected="${values?.get('loanProductId') == p.id.toString()}">Consumer Loan: 500 to 20,000, 3 to 48 months</option>
+            </select>
+            <p class="help" id="loanProductId-help" th:text="${fieldErrors?.get('loanProductId')} ?: 'Each product shows its allowed amount and term'">Hint</p>
+        </div>
+
+        <div class="pair">
+            <div th:replace="~{fragments :: field('amount', 'Amount', 'Inside the range of the product')}"></div>
+            <div th:replace="~{fragments :: field('termMonths', 'Term in months', 'Inside the range of the product')}"></div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit">Submit application</button>
+            <a th:href="@{/ui/applications}">Cancel</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

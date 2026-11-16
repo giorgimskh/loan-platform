@@ -2,72 +2,60 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Products')}"></head>
 <body>
-<header th:replace="~{fragments :: header}"></header>
+<header th:replace="~{fragments :: sidebar('products')}"></header>
 
 <main>
-    <h1>Loan products</h1>
+    <div th:replace="~{fragments :: flash}"></div>
 
-    <table>
+    <div class="title-row">
+        <h1>Loan products <span class="count" th:text="${#lists.size(products)}">2</span></h1>
+        <a class="button" th:href="@{/ui/products/new}">New product</a>
+    </div>
+
+    <table class="ledger" th:if="${!#lists.isEmpty(products)}">
         <thead>
         <tr>
-            <th>Id</th>
-            <th>Name</th>
+            <th>Product</th>
             <th class="number">Interest</th>
-            <th class="number">Amount range</th>
-            <th class="number">Term range</th>
+            <th class="number">Amount</th>
+            <th class="number">Term</th>
             <th>Required documents</th>
-            <th></th>
+            <th><span class="visually-hidden">Actions</span></th>
         </tr>
         </thead>
         <tbody>
         <tr th:each="p : ${products}">
-            <td th:text="${p.id}">1</td>
-            <td th:text="${p.name}">Consumer Loan</td>
-            <td class="number" th:text="${p.interestRate} + ' %'">14.50 %</td>
-            <td class="number" th:text="${p.minAmount} + ' - ' + ${p.maxAmount}">500 - 20000</td>
-            <td class="number" th:text="${p.minTermMonths} + ' - ' + ${p.maxTermMonths} + ' mo'">3 - 48 mo</td>
             <td>
-                <span class="tag" th:each="d : ${p.requiredDocuments}" th:text="${d.id} + ' ' + ${d.name}">1 ID Card</span>
+                <strong th:text="${p.name}">Consumer Loan</strong>
+                <span class="sub" th:text="'Product ' + ${p.id}">Product 1</span>
             </td>
+            <td class="number" th:text="${p.interestRate} + '%'">14.50%</td>
+            <td class="number"
+                th:text="${#numbers.formatDecimal(p.minAmount, 1, 'COMMA', 0, 'POINT')} + ' to ' + ${#numbers.formatDecimal(p.maxAmount, 1, 'COMMA', 0, 'POINT')}">
+                500 to 20,000
+            </td>
+            <td class="number" th:text="${p.minTermMonths} + ' to ' + ${p.maxTermMonths} + ' mo'">3 to 48 mo</td>
             <td>
-                <!-- an HTML form cannot send DELETE, so the website uses POST .../delete -->
-                <form th:action="@{/ui/products/{id}/delete(id=${p.id})}" method="post">
-                    <button type="submit" class="danger small">Delete</button>
+                <span class="tag" th:each="d : ${p.requiredDocuments}" th:text="${d.name}">ID Card</span>
+                <span class="sub" th:if="${#lists.isEmpty(p.requiredDocuments)}">None</span>
+            </td>
+            <td class="row-actions">
+                <a th:href="@{/ui/products/{id}/edit(id=${p.id})}" th:attr="aria-label='Edit ' + ${p.name}">Edit</a>
+                <!-- an HTML form cannot send DELETE, so the website uses POST .../delete.
+                     confirm() asks before deleting; "Cancel" stops the form from being sent. -->
+                <form th:action="@{/ui/products/{id}/delete(id=${p.id})}" method="post"
+                      onsubmit="return confirm('Delete this product? This cannot be undone.')">
+                    <button type="submit" class="link danger" th:attr="aria-label='Delete ' + ${p.name}">Delete</button>
                 </form>
             </td>
-        </tr>
-        <tr th:if="${#lists.isEmpty(products)}">
-            <td colspan="7" class="empty">No products yet.</td>
         </tr>
         </tbody>
     </table>
 
-    <h2>New product</h2>
-    <!-- The input names must match the fields of LoanProductRequest -->
-    <form class="form" th:action="@{/ui/products}" method="post" novalidate>
-        <label>Name
-            <input type="text" name="name" placeholder="Auto Loan">
-        </label>
-        <label>Interest rate (%)
-            <input type="text" name="interestRate" placeholder="11.5">
-        </label>
-        <label>Minimum amount
-            <input type="text" name="minAmount" placeholder="1000">
-        </label>
-        <label>Maximum amount
-            <input type="text" name="maxAmount" placeholder="50000">
-        </label>
-        <label>Minimum term (months)
-            <input type="text" name="minTermMonths" placeholder="6">
-        </label>
-        <label>Maximum term (months)
-            <input type="text" name="maxTermMonths" placeholder="60">
-        </label>
-        <label>Required document type ids (comma separated, may be empty)
-            <input type="text" name="requiredDocumentTypeIds" placeholder="1,2">
-        </label>
-        <button type="submit">Create product</button>
-    </form>
+    <div class="empty-state" th:if="${#lists.isEmpty(products)}">
+        <p>No loan products yet. Customers can only apply once a product exists.</p>
+        <a class="button" th:href="@{/ui/products/new}">New product</a>
+    </div>
 </main>
 </body>
 </html>

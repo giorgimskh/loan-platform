@@ -3,14 +3,24 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head(${title})}"></head>
 <body>
-<header th:replace="~{fragments :: header}"></header>
+<header th:replace="~{fragments :: sidebar('applications')}"></header>
 
 <main>
-    <h1 th:text="${title}">Applications</h1>
+    <p class="back"><a th:href="@{/ui/applications}">Back to applications</a></p>
 
-    <table th:replace="~{fragments :: applicationTable(${applications})}"></table>
+    <h1>
+        <span th:text="${title}">Applications</span>
+        <span class="count" th:text="${#lists.size(applications)}">2</span>
+    </h1>
 
-    <p><a th:href="@{/ui/applications}">&laquo; All applications</a></p>
+    <!-- th:block is an invisible wrapper: it only carries the th:if -->
+    <th:block th:if="${!#lists.isEmpty(applications)}">
+        <table th:replace="~{fragments :: applicationTable(${applications})}"></table>
+    </th:block>
+
+    <div class="empty-state" th:if="${#lists.isEmpty(applications)}">
+        <p>Nothing matches. Go back and try another status, product or amount.</p>
+    </div>
 </main>
 </body>
 </html>

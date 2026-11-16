@@ -1,17 +1,25 @@
 <!DOCTYPE html>
 <!-- Shown by WebController.handleServiceError when a service throws one of our custom exceptions -->
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments :: head('Error')}"></head>
+<head th:replace="~{fragments :: head('Request refused')}"></head>
 <body>
-<header th:replace="~{fragments :: header}"></header>
+<header th:replace="~{fragments :: sidebar('')}"></header>
 
 <main>
-    <h1>The request was refused</h1>
-    <div class="alert error">
-        <strong th:text="${errorType}">ConflictException</strong>
+    <h1>That could not be done</h1>
+
+    <div class="notice error" role="alert">
         <p th:text="${errorMessage}">Application with id 1 is APPROVED and cannot be approved</p>
     </div>
-    <p><a href="javascript:history.back()">&laquo; Go back</a> or <a th:href="@{/ui}">go to the home page</a></p>
+
+    <p class="lead">Nothing was changed. The rule that stopped it:
+        <code th:text="${errorType}">ConflictException</code>
+    </p>
+
+    <p class="form-actions">
+        <a class="button" href="javascript:history.back()">Go back</a>
+        <a th:href="@{/ui}">Open the overview</a>
+    </p>
 </main>
 </body>
 </html>

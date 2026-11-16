@@ -2,86 +2,150 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Application ' + ${loanApplication.id})}"></head>
 <body>
-<header th:replace="~{fragments :: header}"></header>
+<header th:replace="~{fragments :: sidebar('applications')}"></header>
 
 <main>
-    <h1>
-        Application <span th:text="${loanApplication.id}">1</span>
-        <span th:class="'badge ' + ${loanApplication.status}" th:text="${loanApplication.status}">SUBMITTED</span>
-    </h1>
+    <p class="back"><a th:href="@{/ui/applications}">Back to applications</a></p>
 
-    <dl class="details">
-        <dt>Customer</dt>
-        <dd th:text="${loanApplication.customerId} + ' - ' + ${loanApplication.customerFullName}">1 - Ana Beridze</dd>
-        <dt>Product</dt>
-        <dd th:text="${loanApplication.loanProductName}">Consumer Loan</dd>
-        <dt>Amount</dt>
-        <dd th:text="${loanApplication.amount}">5000.00</dd>
-        <dt>Term</dt>
-        <dd th:text="${loanApplication.termMonths} + ' months'">12 months</dd>
-        <dt>Created</dt>
-        <dd th:text="${#temporals.format(loanApplication.createdAt, 'yyyy-MM-dd HH:mm')}">2026-01-01 10:00</dd>
-        <dt>Decision comment</dt>
-        <dd th:text="${loanApplication.decisionComment} ?: '-'">-</dd>
-    </dl>
+    <div th:replace="~{fragments :: flash}"></div>
 
-    <h2>Decision</h2>
-    <!-- The buttons are always shown on purpose: pressing one on an APPROVED or REJECTED
-         application demonstrates rule 4 (the service answers with a conflict). -->
-    <div class="actions">
-        <form th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
-            <button type="submit">Approve</button>
+    <!-- The file card: the facts of the application with its status "stamped" on it -->
+    <section class="file">
+        <div class="file-head">
+            <h1 th:text="'Application No. ' + ${loanApplication.id}">Application No. 1</h1>
+            <span th:class="'stamp ' + ${loanApplication.status}" th:text="${loanApplication.status}">SUBMITTED</span>
+        </div>
+
+        <dl class="facts">
+            <div>
+                <dt>Customer</dt>
+                <dd th:text="${loanApplication.customerFullName}">Ana Beridze</dd>
+            </div>
+            <div>
+                <dt>Product</dt>
+                <dd th:text="${loanApplication.loanProductName}">Consumer Loan</dd>
+            </div>
+            <div>
+                <dt>Amount</dt>
+                <dd class="digits" th:text="${#numbers.formatDecimal(loanApplication.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</dd>
+            </div>
+            <div>
+                <dt>Term</dt>
+                <dd th:text="${loanApplication.termMonths} + ' months'">12 months</dd>
+            </div>
+            <div>
+                <dt>Submitted on</dt>
+                <dd th:text="${#temporals.format(loanApplication.createdAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</dd>
+            </div>
+            <div th:if="${loanApplication.decisionComment != null}">
+                <dt>Reason for rejection</dt>
+                <dd th:text="${loanApplication.decisionComment}">Income too low</dd>
+            </div>
+        </dl>
+    </section>
+
+    <!-- Decision: offered while the application is SUBMITTED (rule 4) -->
+    <section th:if="${loanApplication.status.name() == 'SUBMITTED'}" aria-labelledby="decision-title">
+        <h2 id="decision-title">Decide</h2>
+        <div class="decision">
+            <form class="panel" th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
+                <h3>Approve</h3>
+                <p class="lead">The customer gets the loan. This cannot be changed afterwards.</p>
+                <button type="submit">Approve application</button>
+            </form>
+
+            <form class="panel" th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post" novalidate>
+                <h3>Reject</h3>
+                <div class="field">
+                    <label for="decisionComment">Reason, shown on the application</label>
+                    <input id="decisionComment" type="text" name="decisionComment" autocomplete="off" maxlength="255">
+                </div>
+                <button type="submit" class="danger">Reject application</button>
+            </form>
+        </div>
+
+        <!-- confirm() asks before deleting; "Cancel" in the dialog stops the form from being sent -->
+        <form class="cancel-line" th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post"
+              onsubmit="return confirm('Cancel this application? It and its documents are deleted.')">
+            <span>Submitted by mistake?</span>
+            <button type="submit" class="link danger">Cancel this application</button>
         </form>
-        <form th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post" novalidate>
-            <input type="text" name="decisionComment" placeholder="Rejection reason" aria-label="Rejection reason">
-            <button type="submit" class="danger">Reject</button>
+    </section>
+
+    <!-- Already decided: explain why there are no buttons, but keep a way to demonstrate rule 4 -->
+    <section th:if="${loanApplication.status.name() != 'SUBMITTED'}">
+        <h2>Decision</h2>
+        <p class="lead"
+           th:text="'This application is ' + ${#strings.toLowerCase(loanApplication.status)} + '. A decided application cannot be approved, rejected or cancelled again.'">
+            This application is approved.
+        </p>
+        <details class="try">
+            <summary>Try it anyway (shows business rule 4)</summary>
+            <div class="try-actions">
+                <form th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
+                    <button type="submit" class="quiet">Approve</button>
+                </form>
+                <form th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post">
+                    <input type="hidden" name="decisionComment" value="Trying rule 4">
+                    <button type="submit" class="quiet">Reject</button>
+                </form>
+                <form th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post">
+                    <button type="submit" class="quiet">Cancel</button>
+                </form>
+            </div>
+        </details>
+    </section>
+
+    <section aria-labelledby="documents-title">
+        <h2 id="documents-title">Documents
+            <span class="count" th:text="${#lists.size(loanApplication.documents)}">2</span>
+        </h2>
+
+        <table class="ledger" th:if="${!#lists.isEmpty(loanApplication.documents)}">
+            <thead>
+            <tr>
+                <th>File</th>
+                <th>Document type</th>
+                <th>Uploaded on</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="d : ${loanApplication.documents}">
+                <td th:text="${d.originalFileName}">id-card.pdf</td>
+                <td th:text="${d.documentTypeName}">ID Card</td>
+                <td th:text="${#temporals.format(d.uploadedAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:05</td>
+            </tr>
+            </tbody>
+        </table>
+        <p class="empty-state" th:if="${#lists.isEmpty(loanApplication.documents)}">No documents uploaded yet.</p>
+
+        <!-- enctype="multipart/form-data" is required for a file upload -->
+        <form class="panel upload" th:action="@{/ui/applications/{id}/documents(id=${loanApplication.id})}" method="post"
+              enctype="multipart/form-data">
+            <h3>Upload a document</h3>
+            <div class="field">
+                <label for="file">File</label>
+                <input id="file" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="file-help">
+                <p class="help" id="file-help">PDF, JPG or PNG, at most 5 MB</p>
+            </div>
+
+            <!-- If the product lists required documents, offer them as choices; otherwise ask for the id -->
+            <div class="field" th:if="${requiredDocuments != null and !#lists.isEmpty(requiredDocuments)}">
+                <label for="documentTypeId">Document type</label>
+                <select id="documentTypeId" name="documentTypeId">
+                    <option th:each="d : ${requiredDocuments}" th:value="${d.id}" th:text="${d.name}">ID Card</option>
+                </select>
+                <p class="help">The documents this product requires</p>
+            </div>
+            <div class="field" th:if="${requiredDocuments == null or #lists.isEmpty(requiredDocuments)}">
+                <label for="documentTypeIdNumber">Document type id</label>
+                <input id="documentTypeIdNumber" type="number" name="documentTypeId" value="1" min="1" required>
+                <p class="help">This product requires no documents, so enter any existing type id</p>
+            </div>
+
+            <button type="submit" class="quiet">Upload document</button>
         </form>
-        <form th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post">
-            <button type="submit" class="danger">Cancel application</button>
-        </form>
-    </div>
-
-    <h2>Documents</h2>
-    <table>
-        <thead>
-        <tr>
-            <th>Id</th>
-            <th>File name</th>
-            <th>Document type</th>
-            <th>Uploaded</th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr th:each="d : ${loanApplication.documents}">
-            <td th:text="${d.id}">1</td>
-            <td th:text="${d.originalFileName}">id-card.pdf</td>
-            <td th:text="${d.documentTypeName}">ID Card</td>
-            <td th:text="${#temporals.format(d.uploadedAt, 'yyyy-MM-dd HH:mm')}">2026-01-01 10:05</td>
-        </tr>
-        <tr th:if="${#lists.isEmpty(loanApplication.documents)}">
-            <td colspan="4" class="empty">No documents uploaded.</td>
-        </tr>
-        </tbody>
-    </table>
-
-    <h3>Upload a document</h3>
-    <p th:if="${requiredDocuments != null and !#lists.isEmpty(requiredDocuments)}">
-        This product requires:
-        <span class="tag" th:each="d : ${requiredDocuments}" th:text="${d.id} + ' ' + ${d.name}">1 ID Card</span>
-    </p>
-    <!-- enctype="multipart/form-data" is required for a file upload -->
-    <form class="form" th:action="@{/ui/applications/{id}/documents(id=${loanApplication.id})}" method="post"
-          enctype="multipart/form-data">
-        <label>File (PDF, JPG or PNG, max 5MB)
-            <input type="file" name="file">
-        </label>
-        <label>Document type id
-            <input type="number" name="documentTypeId" value="1" required>
-        </label>
-        <button type="submit">Upload</button>
-    </form>
-
-    <p><a th:href="@{/ui/applications}">&laquo; All applications</a></p>
+    </section>
 </main>
 </body>
 </html>

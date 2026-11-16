@@ -2,70 +2,62 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Applications')}"></head>
 <body>
-<header th:replace="~{fragments :: header}"></header>
+<header th:replace="~{fragments :: sidebar('applications')}"></header>
 
 <main>
-    <h1>Loan applications</h1>
+    <div th:replace="~{fragments :: flash}"></div>
 
-    <!-- Status filter: a GET form, so the choice ends up in the URL as ?status=... -->
-    <form class="inline" th:action="@{/ui/applications}" method="get">
-        <label>Status
-            <select name="status">
-                <option value="">All</option>
-                <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}" th:selected="${s == status}">SUBMITTED</option>
-            </select>
-        </label>
-        <button type="submit">Filter</button>
-    </form>
+    <div class="title-row">
+        <h1>Applications <span class="count" th:text="${page.totalElements}">12</span></h1>
+        <a class="button" th:href="@{/ui/applications/new}">New application</a>
+    </div>
+
+    <!-- Status filter as links: each one is the same page with ?status=... in the URL -->
+    <nav class="tabs" aria-label="Filter by status">
+        <a th:href="@{/ui/applications}" th:classappend="${status == null} ? 'current'">All</a>
+        <a th:each="s : ${statuses}"
+           th:href="@{/ui/applications(status=${s})}"
+           th:classappend="${s == status} ? 'current'"
+           th:text="${#strings.capitalize(#strings.toLowerCase(s))}">Submitted</a>
+    </nav>
 
     <!-- "page" is a Spring Data Page: page.content is the list of rows on this page -->
-    <table th:replace="~{fragments :: applicationTable(${page.content})}"></table>
+    <!-- th:block is an invisible wrapper: it only carries the th:if -->
+    <th:block th:if="${!page.isEmpty()}">
+        <table th:replace="~{fragments :: applicationTable(${page.content})}"></table>
+    </th:block>
 
-    <p class="pager">
-        <a th:if="${page.hasPrevious()}" th:href="@{/ui/applications(status=${status}, page=${page.number - 1})}">&laquo; Previous</a>
-        <span th:text="'Page ' + ${page.number + 1} + ' of ' + ${page.totalPages} + ' (' + ${page.totalElements} + ' applications)'">Page 1 of 1</span>
-        <a th:if="${page.hasNext()}" th:href="@{/ui/applications(status=${status}, page=${page.number + 1})}">Next &raquo;</a>
-    </p>
+    <div class="empty-state" th:if="${page.isEmpty()}">
+        <p th:if="${status == null}">No applications yet. Start one for a registered customer.</p>
+        <p th:if="${status != null}"
+           th:text="'No ' + ${#strings.toLowerCase(status)} + ' applications. Choose another status to see the rest.'">
+            No approved applications.
+        </p>
+    </div>
 
-    <h2>New application</h2>
-    <!-- The input names must match the fields of LoanApplicationRequest -->
-    <form class="form" th:action="@{/ui/applications}" method="post" novalidate>
-        <label>Customer
-            <select name="customerId">
-                <option value="">Choose a customer</option>
-                <option th:each="c : ${customers}" th:value="${c.id}" th:text="${c.id} + ' - ' + ${c.fullName}">1 - Ana Beridze</option>
-            </select>
-        </label>
-        <label>Product
-            <select name="loanProductId">
-                <option value="">Choose a product</option>
-                <option th:each="p : ${products}" th:value="${p.id}"
-                        th:text="${p.name} + ' (' + ${p.minAmount} + ' - ' + ${p.maxAmount} + ', ' + ${p.minTermMonths} + ' - ' + ${p.maxTermMonths} + ' months)'">
-                    Consumer Loan (500 - 20000, 3 - 48 months)
-                </option>
-            </select>
-        </label>
-        <label>Amount
-            <input type="text" name="amount" placeholder="5000">
-        </label>
-        <label>Term (months)
-            <input type="text" name="termMonths" placeholder="12">
-        </label>
-        <button type="submit">Submit application</button>
-    </form>
+    <!-- Pager: only shown when there is more than one page -->
+    <nav class="pager" aria-label="Pages" th:if="${page.totalPages > 1}">
+        <a th:if="${page.hasPrevious()}" th:href="@{/ui/applications(status=${status}, page=${page.number - 1})}">Previous</a>
+        <span th:text="'Page ' + ${page.number + 1} + ' of ' + ${page.totalPages}">Page 1 of 3</span>
+        <a th:if="${page.hasNext()}" th:href="@{/ui/applications(status=${status}, page=${page.number + 1})}">Next</a>
+    </nav>
 
-    <h2>Search by product and amount</h2>
-    <form class="form" th:action="@{/ui/applications/search}" method="get">
-        <label>Product name
-            <select name="productName" required>
-                <option th:each="p : ${products}" th:value="${p.name}" th:text="${p.name}">Consumer Loan</option>
-            </select>
-        </label>
-        <label>Amount above
-            <input type="number" name="amountAbove" value="0" min="0" step="0.01" required>
-        </label>
-        <button type="submit">Search</button>
-    </form>
+    <section class="panel search" aria-labelledby="search-title">
+        <h2 id="search-title">Find large applications for one product</h2>
+        <form th:action="@{/ui/applications/search}" method="get">
+            <div class="field">
+                <label for="productName">Product</label>
+                <select id="productName" name="productName" required>
+                    <option th:each="p : ${products}" th:value="${p.name}" th:text="${p.name}">Consumer Loan</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="amountAbove">Amount above</label>
+                <input id="amountAbove" type="number" name="amountAbove" value="1000" min="0" step="0.01" required>
+            </div>
+            <button type="submit" class="quiet">Search</button>
+        </form>
+    </section>
 </main>
 </body>
 </html>

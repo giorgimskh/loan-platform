@@ -127,11 +127,16 @@ as the REST API, so the same validation and business rules apply. It does not go
 
 | Page | What you can do |
 |------|-----------------|
-| `/ui` | Home page with the report "total approved amount per product" |
-| `/ui/customers` | List and create customers; open one customer's applications by status |
-| `/ui/products` | List, create and delete loan products |
-| `/ui/applications` | Paginated list with a status filter, new application form, search by product and amount |
+| `/ui` | Overview: applications waiting for a decision and the report "approved lending by product" |
+| `/ui/customers` | List customers, register a customer, open a customer's applications by status |
+| `/ui/products` | List and delete loan products |
+| `/ui/products/new`, `/ui/products/{id}/edit` | Create or edit a loan product (one shared form) |
+| `/ui/applications` | Paginated list with status tabs, search by product and amount |
+| `/ui/applications/new` | Submit an application for a customer |
 | `/ui/applications/{id}` | Details, approve / reject / cancel, upload documents |
+
+When a form is invalid, the same page is shown again with the typed values and one message under each
+invalid field.
 
 Templates are in `src/main/resources/templates`, the stylesheet in `src/main/resources/static/css/style.css`.
 

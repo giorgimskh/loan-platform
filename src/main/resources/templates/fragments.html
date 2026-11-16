@@ -6,52 +6,77 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${title} + ' - Loan Platform'">Loan Platform</title>
+    <!-- Fonts from Google Fonts; without internet the page falls back to system fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
     <!-- @{...} builds a URL; the file is src/main/resources/static/css/style.css -->
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
 
 <body>
 
-<header th:fragment="header">
-    <nav>
-        <a class="brand" th:href="@{/ui}">Loan Platform</a>
-        <a th:href="@{/ui/customers}">Customers</a>
-        <a th:href="@{/ui/products}">Products</a>
-        <a th:href="@{/ui/applications}">Applications</a>
+<!-- The left sidebar. "active" is the name of the current page, so its link can be highlighted. -->
+<header class="sidebar" th:fragment="sidebar(active)">
+    <a class="brand" th:href="@{/ui}">Loan Platform</a>
+    <nav aria-label="Main">
+        <a th:href="@{/ui}" th:classappend="${active == 'home'} ? 'current'">Overview</a>
+        <a th:href="@{/ui/applications}" th:classappend="${active == 'applications'} ? 'current'">Applications</a>
+        <a th:href="@{/ui/customers}" th:classappend="${active == 'customers'} ? 'current'">Customers</a>
+        <a th:href="@{/ui/products}" th:classappend="${active == 'products'} ? 'current'">Products</a>
     </nav>
-
-    <!-- flash attributes set by WebController before a redirect -->
-    <p class="alert success" th:if="${message}" th:text="${message}">Saved</p>
-    <ul class="alert error" th:if="${errors}">
-        <li th:each="error : ${errors}" th:text="${error}">Validation message</li>
-    </ul>
+    <p class="sidebar-note">Test website. It uses the same services and rules as the REST API.</p>
 </header>
 
+<!-- Messages set by WebController before a redirect (flash attributes). role="status" makes screen readers announce them. -->
+<div th:fragment="flash">
+    <p class="notice success" role="status" th:if="${message}" th:text="${message}">Saved</p>
+    <p class="notice error" role="alert" th:if="${error}" th:text="${error}">Something is wrong</p>
+</div>
+
+<!--
+  One text field of a form: label, input, and a help line under it.
+  It reads two things from the Model:
+    values      - what the user typed before (so a failed form is not emptied)
+    fieldErrors - one message per invalid field; it replaces the hint and turns the field red
+  ?.get(name) means "if the map exists, read the entry", so the page also works when they are missing.
+-->
+<div class="field" th:fragment="field(name, label, hint)"
+     th:classappend="${fieldErrors?.get(name) != null} ? 'invalid'">
+    <label th:for="${name}" th:text="${label}">Label</label>
+    <input type="text" autocomplete="off"
+           th:id="${name}" th:name="${name}" th:value="${values?.get(name)}"
+           th:attr="aria-describedby=${name + '-help'}, aria-invalid=${fieldErrors?.get(name) != null}">
+    <p class="help" th:id="${name + '-help'}" th:text="${fieldErrors?.get(name)} ?: ${hint}">Hint</p>
+</div>
+
+<!-- The status of an application as a small coloured label, e.g. "Submitted" -->
+<span th:fragment="status(value)" th:class="'status ' + ${value}"
+      th:text="${#strings.capitalize(#strings.toLowerCase(value))}">Submitted</span>
+
 <!-- A table of applications, used by several pages. "applications" is a list of LoanApplicationResponse. -->
-<table th:fragment="applicationTable(applications)">
+<table class="ledger" th:fragment="applicationTable(applications)">
     <thead>
     <tr>
-        <th>Id</th>
+        <th>Application</th>
         <th>Customer</th>
         <th>Product</th>
         <th class="number">Amount</th>
         <th class="number">Term</th>
         <th>Status</th>
-        <th>Created</th>
+        <th>Submitted on</th>
     </tr>
     </thead>
     <tbody>
     <tr th:each="a : ${applications}">
-        <td><a th:href="@{/ui/applications/{id}(id=${a.id})}" th:text="${a.id}">1</a></td>
+        <td><a th:href="@{/ui/applications/{id}(id=${a.id})}" th:text="'No. ' + ${a.id}">No. 1</a></td>
         <td th:text="${a.customerFullName}">Ana Beridze</td>
         <td th:text="${a.loanProductName}">Consumer Loan</td>
-        <td class="number" th:text="${a.amount}">5000.00</td>
+        <td class="number" th:text="${#numbers.formatDecimal(a.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</td>
         <td class="number" th:text="${a.termMonths} + ' mo'">12 mo</td>
-        <td><span th:class="'badge ' + ${a.status}" th:text="${a.status}">SUBMITTED</span></td>
-        <td th:text="${#temporals.format(a.createdAt, 'yyyy-MM-dd HH:mm')}">2026-01-01 10:00</td>
-    </tr>
-    <tr th:if="${#lists.isEmpty(applications)}">
-        <td colspan="7" class="empty">No applications found.</td>
+        <td><span th:replace="~{fragments :: status(${a.status})}"></span></td>
+        <td th:text="${#temporals.format(a.createdAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</td>
     </tr>
     </tbody>
 </table>
