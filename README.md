@@ -285,15 +285,43 @@ whole application, so **the database must be running** when you run all tests.
 
 ```
 src/main/java/ge/kiu/loanplatform
-├── controller   REST controllers (@RestController) and WebController (@Controller) for the website
+├── controller
+│   ├── api          REST controllers (@RestController) under /api
+│   └── web          WebController (@Controller) for the /ui website
 ├── service      business rules, transactions (@Service, @Transactional)
+│   ├── customer     CustomerService
+│   ├── product      LoanProductService
+│   ├── application  LoanApplicationService, LoanCalculatorService
+│   └── document     DocumentService, DocumentTypeService, FileStorageService
 ├── repository   Spring Data JPA repositories (method-name queries and @Query)
-├── entity       JPA entities (Customer, LoanProduct, DocumentType, LoanApplication, Document,
-│                StatusChange) and the ApplicationStatus enum
+│   ├── customer     CustomerRepository
+│   ├── product      LoanProductRepository
+│   ├── application  LoanApplicationRepository, ProductTotalAmount (report row)
+│   └── document     DocumentRepository, DocumentTypeRepository
+├── entity       JPA entities
+│   ├── customer     Customer
+│   ├── product      LoanProduct
+│   ├── application  LoanApplication, StatusChange, ApplicationStatus enum
+│   └── document     Document, DocumentType
 ├── dto          request DTOs with validation, response DTOs
-├── config       AppProperties (app.upload-dir), DataInitializer (sample data), OpenApiConfig (Swagger title)
-└── exception    custom exceptions and GlobalExceptionHandler
+│   ├── customer     CustomerRequest, CustomerResponse
+│   ├── product      LoanProductRequest, LoanProductResponse
+│   ├── application  create/update/reject requests, LoanApplicationResponse, StatusChangeResponse
+│   ├── document     document and document type DTOs, DocumentFile (download)
+│   ├── calculation  payment calculator result and repayment schedule
+│   ├── report       approved totals per product, statistics
+│   ├── error        ErrorResponse (JSON error body)
+│   └── validation   reusable constraints @ValidAmount and @ValidTerm with their validators
+├── config
+│   ├── properties   AppProperties (app.upload-dir)
+│   ├── data         DataInitializer (sample data)
+│   └── openapi      OpenApiConfig (Swagger title)
+└── exception
+    ├── custom       ResourceNotFoundException, BusinessRuleException, ConflictException
+    └── handler      GlobalExceptionHandler (@RestControllerAdvice)
 ```
+
+The test classes in `src/test/java` use the same packages as the classes they test.
 
 Uploaded files are saved in the folder set by `app.upload-dir` (default: `uploads/` in the project folder)
 under a unique generated name; the path is stored in the `documents` table.
