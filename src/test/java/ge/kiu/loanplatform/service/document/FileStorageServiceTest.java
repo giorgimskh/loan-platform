@@ -7,6 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -42,8 +46,23 @@ class FileStorageServiceTest {
     }
 
     @Test
-    void store_acceptsUpperCaseExtension() {
-        MockMultipartFile file = new MockMultipartFile("file", "PHOTO.PNG", "image/png", "content".getBytes());
+    void store_neverUsesTheOriginalNameAsPath_evenWhenItContainsFolders() {
+        // a client can send any text as the file name, also one that tries to leave the upload folder
+        MockMultipartFile file = new MockMultipartFile("file", "../../evil.pdf", "application/pdf", "content".getBytes());
+
+        Path stored = Path.of(fileStorageService.store(file));
+
+        assertThat(stored.getParent()).isEqualTo(tempDir);                        // still in the upload folder
+        assertThat(stored.getFileName().toString()).matches("[0-9a-f-]{36}\\.pdf"); // UUID + ".pdf"
+    }
+
+    @Test
+    void store_acceptsUpperCaseExtension() throws IOException {
+        // a real 1 x 1 pixel PNG, because images are now read (their header) before they are stored
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", png);
+        MockMultipartFile file = new MockMultipartFile("file", "PHOTO.PNG", "image/png", png.toByteArray());
 
         assertThat(fileStorageService.store(file)).endsWith(".png");
     }

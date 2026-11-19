@@ -2776,8 +2776,8 @@
                   "pm.test(\"Status is 400\", function () {",
                   "    pm.response.to.have.status(400);",
                   "});",
-                  "pm.test(\"Error message is returned\", function () {",
-                  "    pm.expect(pm.response.json().message).to.include(\"Only PDF, JPG and PNG\");",
+                  "pm.test(\"@ValidFile reports the file type\", function () {",
+                  "    pm.expect(pm.response.json().fieldErrors.file).to.include(\"Only PDF, JPG and PNG\");",
                   "});"
                 ]
               }

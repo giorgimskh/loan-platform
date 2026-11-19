@@ -2,7 +2,6 @@ package ge.kiu.loanplatform.controller.api;
 
 import ge.kiu.loanplatform.dto.document.DocumentFile;
 import ge.kiu.loanplatform.dto.document.DocumentResponse;
-import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.document.DocumentService;
@@ -15,7 +14,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -103,28 +105,129 @@ class DocumentControllerTest {
         verifyNoInteractions(documentService);
     }
 
+    // ---------- @ValidFile (rule 6): refused before the service is called ----------
+
     @Test
     void upload_returns400_whenFileIsMissing() throws Exception {
         mockMvc.perform(multipart("/api/applications/1/documents")
                         .param("documentTypeId", "2"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Missing required part 'file'"));
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.fieldErrors.file").value("File is required and must not be empty"));
 
         verifyNoInteractions(documentService);
     }
 
     @Test
-    void upload_returns400_whenFileTypeIsNotAllowed() throws Exception { // rule 6
-        when(documentService.upload(eq(1L), any(MultipartFile.class), eq(2L)))
-                .thenThrow(new BusinessRuleException("Only PDF, JPG and PNG files are allowed"));
+    void upload_returns400_whenFileIsEmpty() throws Exception {
+        MockMultipartFile empty = new MockMultipartFile("file", "id-card.pdf", "application/pdf", new byte[0]);
 
+        mockMvc.perform(multipart("/api/applications/1/documents")
+                        .file(empty)
+                        .param("documentTypeId", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.file").value("File is required and must not be empty"));
+
+        verifyNoInteractions(documentService);
+    }
+
+    @Test
+    void upload_returns400_whenFileIsLargerThan5Mb() throws Exception {
+        // MockMvc does not apply spring.servlet.multipart limits, so this reaches @ValidFile
+        MockMultipartFile big = new MockMultipartFile("file", "big.pdf", "application/pdf", new byte[5 * 1024 * 1024 + 1]);
+
+        mockMvc.perform(multipart("/api/applications/1/documents")
+                        .file(big)
+                        .param("documentTypeId", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.file").value("File is too large. Maximum size is 5MB"));
+
+        verifyNoInteractions(documentService);
+    }
+
+    @Test
+    void upload_returns400_whenFileTypeIsNotAllowed() throws Exception {
         MockMultipartFile txt = new MockMultipartFile("file", "notes.txt", "text/plain", "hello".getBytes());
 
         mockMvc.perform(multipart("/api/applications/1/documents")
                         .file(txt)
                         .param("documentTypeId", "2"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Only PDF, JPG and PNG files are allowed"));
+                .andExpect(jsonPath("$.fieldErrors.file").value("Only PDF, JPG and PNG files are allowed"));
+
+        verifyNoInteractions(documentService);
+    }
+
+    @Test
+    void upload_returns201_whenImageIsARealPng() throws Exception {
+        when(documentService.upload(eq(1L), any(MultipartFile.class), eq(2L)))
+                .thenReturn(new DocumentResponse(5L, "photo.png", 2L, "ID Card", LocalDateTime.now()));
+        MockMultipartFile png = new MockMultipartFile("file", "photo.png", "image/png", pngHeader(800, 600));
+
+        mockMvc.perform(multipart("/api/applications/1/documents")
+                        .file(png)
+                        .param("documentTypeId", "2"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void upload_returns400_whenImageIsAPixelBomb() throws Exception {
+        // a file of a few bytes whose header says 100 000 x 100 000 pixels (40 GB once decoded)
+        MockMultipartFile bomb = new MockMultipartFile("file", "bomb.png", "image/png", pngHeader(100_000, 100_000));
+
+        mockMvc.perform(multipart("/api/applications/1/documents")
+                        .file(bomb)
+                        .param("documentTypeId", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.file").value("The image is too large. Maximum is 25 million pixels"));
+
+        verifyNoInteractions(documentService);
+    }
+
+    @Test
+    void upload_returns400_whenPngIsNotReallyAnImage() throws Exception {
+        // a text file renamed to .png and declared as image/png
+        MockMultipartFile fake = new MockMultipartFile("file", "photo.png", "image/png", "hello".getBytes());
+
+        mockMvc.perform(multipart("/api/applications/1/documents")
+                        .file(fake)
+                        .param("documentTypeId", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.file").value("The file is not a valid JPG or PNG image"));
+
+        verifyNoInteractions(documentService);
+    }
+
+    // The start of a PNG file: the 8-byte PNG signature and the IHDR chunk, which holds width and height.
+    // That is all a PNG reader needs to report the size, so a "huge" image costs only 33 bytes here.
+    private static byte[] pngHeader(int width, int height) {
+        ByteBuffer ihdrData = ByteBuffer.allocate(13)
+                .putInt(width).putInt(height)
+                .put((byte) 8)   // bit depth
+                .put((byte) 6)   // colour type: RGBA
+                .put((byte) 0).put((byte) 0).put((byte) 0); // compression, filter, interlace
+        byte[] type = "IHDR".getBytes(StandardCharsets.US_ASCII);
+        CRC32 crc = new CRC32();     // every PNG chunk ends with a checksum of its type and data
+        crc.update(type);
+        crc.update(ihdrData.array());
+        return ByteBuffer.allocate(8 + 4 + 4 + 13 + 4)
+                .put(new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'})
+                .putInt(13).put(type).put(ihdrData.array()).putInt((int) crc.getValue())
+                .array();
+    }
+
+    @Test
+    void upload_returns400_whenExtensionAndContentTypeDoNotMatch() throws Exception {
+        // the name says PDF, but the declared Content-Type says plain text
+        MockMultipartFile fake = new MockMultipartFile("file", "fake.pdf", "text/plain", "hello".getBytes());
+
+        mockMvc.perform(multipart("/api/applications/1/documents")
+                        .file(fake)
+                        .param("documentTypeId", "2"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.file").value("Only PDF, JPG and PNG files are allowed"));
+
+        verifyNoInteractions(documentService);
     }
 
     @Test

@@ -14,6 +14,7 @@ import ge.kiu.loanplatform.repository.document.DocumentTypeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -36,7 +37,7 @@ public class DocumentService {
         String storedFilePath = fileStorageService.store(file);
 
         Document document = new Document();
-        document.setOriginalFileName(file.getOriginalFilename());
+        document.setOriginalFileName(displayName(file.getOriginalFilename()));
         document.setStoredFilePath(storedFilePath);
         document.setLoanApplication(application);
         document.setDocumentType(documentType);
@@ -68,6 +69,15 @@ public class DocumentService {
     }
 
     // ---------- helpers ----------
+
+    // The original name is only shown and used as the download name, never as a path on disk.
+    // A client can still send any text as the name, e.g. "../../secret.pdf" or "C:\docs\id.pdf":
+    // cleanPath turns "\\" into "/", getFilename keeps only the part after the last "/".
+    // The column holds at most 255 characters, so a longer name keeps its last 255 (with the extension).
+    private String displayName(String originalFileName) {
+        String name = StringUtils.getFilename(StringUtils.cleanPath(originalFileName));
+        return name.length() > 255 ? name.substring(name.length() - 255) : name;
+    }
 
     private Document findDocument(Long id) {
         return documentRepository.findById(id)

@@ -86,8 +86,9 @@ Postman: Body → form-data. Key `file` with type **File**, key `documentTypeId`
 |---|---------|-----------|----------|
 | 42 | `POST /api/applications/1/documents` | `file` = a PDF, `documentTypeId` = 1 | 201, document `id` 1 |
 | 43 | `POST /api/applications/1/documents` | `file` = a PNG or JPG, `documentTypeId` = 2 | 201, document `id` 2 |
-| 44 | `POST /api/applications/1/documents` | `file` = a .txt file, `documentTypeId` = 1 | 400, only PDF, JPG, PNG (rule 6) |
-| 45 | `POST /api/applications/1/documents` | `file` = a file larger than 5MB | 400, file too large (rule 6) |
+| 44 | `POST /api/applications/1/documents` | `file` = a .txt file, `documentTypeId` = 1 | 400, `fieldErrors.file`: only PDF, JPG, PNG (rule 6, `@ValidFile`) |
+| 45 | `POST /api/applications/1/documents` | `file` = a file larger than 5MB | 400, file too large (rule 6, global limit in `application.properties`) |
+| 45b | `POST /api/applications/1/documents` | `file` = a PNG over 25 million pixels (e.g. 6000 x 5000) | 400, `fieldErrors.file`: image too large (pixel-bomb guard) |
 | 46 | `POST /api/applications/1/documents` | only `file`, no `documentTypeId` | 400, missing parameter |
 | 47 | `POST /api/applications/99/documents` | valid file, `documentTypeId` = 1 | 404, application not found |
 | 48 | `POST /api/applications/1/documents` | valid file, `documentTypeId` = 99 | 404, document type not found |

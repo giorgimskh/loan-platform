@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.controller.api;
 
 import ge.kiu.loanplatform.dto.document.DocumentFile;
 import ge.kiu.loanplatform.dto.document.DocumentResponse;
+import ge.kiu.loanplatform.dto.validation.ValidFile;
 import ge.kiu.loanplatform.service.document.DocumentService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Positive;
@@ -34,11 +35,14 @@ public class DocumentController {
     private final DocumentService documentService;
 
     // multipart/form-data with two parts: "file" and "documentTypeId"
+    // @ValidFile checks the file (present, at most 5MB, PDF/JPG/PNG) before the service is called.
+    // required = false: a missing file arrives as null, so @ValidFile reports it with the same
+    // clean 400 "Validation failed" response as an empty or wrong file.
     @PostMapping(value = "/applications/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public DocumentResponse upload(
             @PathVariable @Positive(message = "Id must be a positive number") Long id,
-            @RequestParam MultipartFile file,
+            @RequestParam(required = false) @ValidFile MultipartFile file,
             @RequestParam @Positive(message = "Document type id must be a positive number") Long documentTypeId) {
         return documentService.upload(id, file, documentTypeId);
     }
