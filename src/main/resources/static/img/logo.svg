@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" role="img" aria-label="Loan Platform">
+  <!-- Loan Platform logo: an "L" and a coin on an orange tile -->
+  <rect width="40" height="40" rx="11" fill="#ff5f00"/>
+  <!-- the letter L, drawn with two rounded bars -->
+  <rect x="10" y="9" width="6.5" height="22" rx="3.25" fill="#fff"/>
+  <rect x="10" y="24.5" width="20" height="6.5" rx="3.25" fill="#fff"/>
+  <!-- the coin: a ring with a hole -->
+  <circle cx="26" cy="14" r="5.5" fill="#fff"/>
+  <circle cx="26" cy="14" r="2.2" fill="#ff5f00"/>
+</svg>

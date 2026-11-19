@@ -10,8 +10,12 @@
     <div class="title-row">
         <div>
             <!-- "page" is a Spring Data Page: totalElements counts every match, not only this page -->
-            <h1>Customers <span class="count" th:text="${page.totalElements}">3</span></h1>
-            <p class="lead">Everyone who can apply for a loan.</p>
+            <!-- The orange bar already shows the name of this page, so the heading is only for screen readers
+             (and for the browser's outline of the page); "visually-hidden" hides it on screen. -->
+            <h1 class="visually-hidden">Customers</h1>
+            <p class="lead"><strong class="lead-count"
+                th:text="${page.totalElements} + (${page.totalElements == 1} ? ' customer.' : ' customers.')">3 customers.</strong>
+                Everyone who can apply for a loan.</p>
         </div>
     </div>
 
@@ -106,5 +110,6 @@
         </aside>
     </div>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

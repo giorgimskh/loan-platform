@@ -9,8 +9,12 @@
 
     <div class="title-row">
         <div>
-            <h1>Applications <span class="count" th:text="${page.totalElements}">12</span></h1>
-            <p class="lead">Open the Actions menu of a row to edit, approve, reject or cancel it.</p>
+            <!-- The orange bar already shows the name of this page, so the heading is only for screen readers
+             (and for the browser's outline of the page); "visually-hidden" hides it on screen. -->
+            <h1 class="visually-hidden">Applications</h1>
+            <p class="lead"><strong class="lead-count"
+                th:text="${page.totalElements} + (${page.totalElements == 1} ? ' application.' : ' applications.')">12 applications.</strong>
+                Open the Actions menu of a row to edit, approve, reject or cancel it.</p>
         </div>
         <a class="button" th:href="@{/ui/applications/new}">New application</a>
     </div>
@@ -62,5 +66,6 @@
         </form>
     </section>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

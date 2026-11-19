@@ -223,10 +223,10 @@ as the REST API, so the same validation and business rules apply. It does not go
 
 | Page | What you can do |
 |------|-----------------|
-| `/ui` | Overview: statistics, two charts, and the applications waiting for a decision |
+| `/ui` | Home page: the queue of applications waiting for a decision first, shortcuts, then key figures and two charts |
 | `/ui/applications` | Paginated list with status tabs; each row has an Actions menu (open, edit, approve, reject, cancel); search by product and amount |
 | `/ui/applications/new`, `/ui/applications/{id}/edit` | Submit an application, or change one that is still submitted |
-| `/ui/applications/{id}` | Details, required documents checklist, approve / reject / cancel, upload, download and delete documents, repayment schedule, history |
+| `/ui/applications/{id}` | The application as a file with its status stamp; documents (upload, download, delete) and repayment schedule on the left; decision (required documents checklist, approve / reject / cancel) and history on the right |
 | `/ui/customers` | Search and page through customers, register, edit and delete a customer, open a customer's applications by status |
 | `/ui/products` | List and delete loan products |
 | `/ui/products/new`, `/ui/products/{id}/edit` | Create or edit a loan product (one shared form, required documents as checkboxes) |
@@ -237,9 +237,55 @@ When a form is invalid, the same page is shown again with the typed values and o
 invalid field. When a service refuses an action (for example approving without the ID Card), the user is
 sent back to the page they came from with the reason in a red message.
 
-The charts on the overview are plain HTML and CSS, with no JavaScript library.
+The charts on the home page are plain HTML and CSS, with no JavaScript library.
 
-Templates are in `src/main/resources/templates`, the stylesheet in `src/main/resources/static/css/style.css`.
+**Design.** The website follows the style of a modern retail bank website (the loans page of a large
+Georgian bank was the reference), with its own name, logo and photos:
+
+- a two-row header: a white bar with the logo on the far left, the two areas *Daily work* and *Setup*,
+  and an orange "New application" button; under it an orange bar with black links to the pages of the
+  open area (a small white triangle marks the open page)
+- colours: the brand orange for actions (buttons, links, the header bar) and a deep navy for text, the
+  footer and the shade on the banner; the page is a very light blue-grey so the white cards stand out
+  (all colours are tokens at the top of `style.css`)
+- no repeated page title: the orange bar already names the open page, so a page starts with a short line
+  with its count (e.g. "12 applications.") and its main button; the `<h1>` is still there for screen
+  readers (class `visually-hidden`). Pages that are not in the bar (forms, an application) keep a visible title
+- rounded white cards with thin grey borders, orange buttons and orange "more" links in capitals
+- the home page: a photo banner with the waiting queue, two shortcut cards with photos, key figures
+  and two charts; loan products are cards with a photo that matches the product; the calculator has a
+  grey result panel
+- a dark navy footer with links on every page
+- colour on data only for the three statuses (blue submitted, green approved, red rejected); the status of
+  an application is stamped on it
+- motion, mostly CSS: every page comes in part by part and table rows fade in one after another; on the
+  home page the banner photo zooms out, its text comes in line by line, the numbers count up, and the key
+  figures and charts appear (and the bars grow) when they are scrolled into view; the status stamp lands
+  on the application page and the history points pop in; the logo tilts, tabs get a growing underline,
+  orange buttons get a shine and sink when pressed, "more" arrows move, cards lift with a slow photo zoom,
+  the Actions menu and messages slide in. The counting and the scroll reveal are in
+  `src/main/resources/static/js/motion.js` (plain JavaScript, no library). All of it is switched off for
+  people who ask their system for reduced motion
+- no emoji or symbol characters: small arrows and dots are drawn with CSS
+
+The font is Inter (Google Fonts). The logo is `src/main/resources/static/img/logo.svg` (an "L" and a coin).
+The photos in `src/main/resources/static/img/photos` are from [Unsplash](https://unsplash.com) and free to
+use under the Unsplash License:
+
+| File | Photo by |
+|------|----------|
+| `banner.jpg` | Vitaly Gariev |
+| `application.jpg` | Scott Graham |
+| `calculator.jpg` | Towfiqu barbhuiya |
+| `product-house.jpg` | Tierra Mallorca |
+| `product-car.jpg` | yahdi yasya |
+| `product-money.jpg` | Towfiqu barbhuiya |
+
+A product card shows the house photo when the product name contains "mortgage", the car key photo for
+"car loan" or "auto", and the coins photo for every other product.
+
+Templates are in `src/main/resources/templates`, the stylesheet in `src/main/resources/static/css/style.css`,
+the small animation script in `src/main/resources/static/js/motion.js`.
 
 ## Testing with Postman
 

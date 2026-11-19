@@ -2,7 +2,7 @@ package ge.kiu.loanplatform.dto.report;
 
 import java.math.BigDecimal;
 
-// Numbers about all applications, shown on the overview page of the website
+// Numbers about all applications, shown on the home page of the website
 public record StatisticsResponse(
         long totalApplications,
         long submitted,

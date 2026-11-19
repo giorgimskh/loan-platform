@@ -1,47 +1,85 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments :: head('Overview')}"></head>
+<head th:replace="~{fragments :: head('Home')}"></head>
 <body>
 <header th:replace="~{fragments :: topbar('home')}"></header>
 
 <main>
     <div th:replace="~{fragments :: flash}"></div>
 
-    <div class="title-row">
-        <div>
-            <h1>Overview</h1>
-            <p class="lead">What is happening with loan applications right now.</p>
+    <!-- The orange bar already shows "Home", so the heading is only for screen readers;
+         "visually-hidden" hides it on screen. The banner below is the first thing people see. -->
+    <h1 class="visually-hidden">Home</h1>
+
+    <!-- The banner: how many applications wait for a decision. This is the officer's main job, so it comes first.
+         A photo fills the banner; a dark shade over its left part keeps the white text readable.
+         "stats" is a StatisticsResponse, the same data as GET /api/applications/reports/statistics -->
+    <section class="banner" aria-labelledby="queue-title">
+        <!-- alt="" because the photo is decoration only: the text says everything -->
+        <img class="banner-photo" th:src="@{/img/photos/banner.jpg}" src="/img/photos/banner.jpg"
+             width="1400" height="760" alt="">
+        <div class="banner-text">
+            <p class="banner-number" data-count-up th:text="${stats.submitted}">3</p>
+            <h2 id="queue-title" th:if="${stats.submitted > 0}"
+                th:text="${stats.submitted == 1} ? 'application is waiting for a decision' : 'applications are waiting for a decision'">applications are waiting for a decision</h2>
+            <h2 id="queue-title" th:if="${stats.submitted == 0}">The queue is empty</h2>
+            <p th:if="${stats.submitted > 0}">Each one needs an approval, or a rejection with a reason.</p>
+            <p th:if="${stats.submitted == 0}">No applications are waiting for a decision. New ones land here as soon as they are submitted.</p>
+            <a class="button" th:if="${stats.submitted > 0}"
+               th:href="@{/ui/applications(status='SUBMITTED')}">Review waiting applications</a>
+            <a class="button" th:if="${stats.submitted == 0}"
+               th:href="@{/ui/applications/new}">New application</a>
         </div>
-        <a class="button" th:href="@{/ui/applications/new}">New application</a>
+    </section>
+
+    <!-- Two shortcuts as cards: a photo on top, then the title, a short text and a link -->
+    <div class="promo-grid">
+        <a class="promo" th:href="@{/ui/applications/new}">
+            <img class="promo-photo" th:src="@{/img/photos/application.jpg}" src="/img/photos/application.jpg"
+                 width="1000" height="560" alt="">
+            <span class="promo-body">
+                <span class="promo-title">New application</span>
+                <span class="promo-text">Submit a loan application for a registered customer. Amount and term must fit the product.</span>
+                <span class="more">Start an application</span>
+            </span>
+        </a>
+        <a class="promo" th:href="@{/ui/calculator}">
+            <img class="promo-photo" th:src="@{/img/photos/calculator.jpg}" src="/img/photos/calculator.jpg"
+                 width="1000" height="560" alt="">
+            <span class="promo-body">
+                <span class="promo-title">Payment calculator</span>
+                <span class="promo-text">See the monthly payment, the interest and the total before applying. Nothing is saved.</span>
+                <span class="more">Open the calculator</span>
+            </span>
+        </a>
     </div>
 
-    <!-- "stats" is a StatisticsResponse, the same data as GET /api/applications/reports/statistics -->
-    <section class="stats" aria-label="Key numbers">
-        <a class="stat" th:href="@{/ui/applications}">
+    <!-- "reveal": these parts fade in when they are scrolled into view (motion.js);
+         data-count-up: the number counts up from 0 when the page opens -->
+    <h2 class="section-title reveal">Key figures</h2>
+
+    <!-- The other key figures in one row. Each one opens the matching list. -->
+    <section class="stats reveal" aria-label="Key numbers">
+        <a class="stat all" th:href="@{/ui/applications}">
             <span class="stat-label">All applications</span>
-            <span class="stat-value" th:text="${stats.totalApplications}">12</span>
+            <span class="stat-value" data-count-up th:text="${stats.totalApplications}">12</span>
             <span class="stat-note"
                   th:text="'Average amount ' + ${#numbers.formatDecimal(stats.averageAmount, 1, 'COMMA', 2, 'POINT')}">Average amount 5,000.00</span>
         </a>
-        <a class="stat waiting" th:href="@{/ui/applications(status='SUBMITTED')}">
-            <span class="stat-label">Waiting for a decision</span>
-            <span class="stat-value" th:text="${stats.submitted}">3</span>
-            <span class="stat-note">Submitted, not decided yet</span>
-        </a>
         <a class="stat approved" th:href="@{/ui/applications(status='APPROVED')}">
             <span class="stat-label">Approved</span>
-            <span class="stat-value" th:text="${stats.approved}">7</span>
+            <span class="stat-value" data-count-up th:text="${stats.approved}">7</span>
             <span class="stat-note"
                   th:text="${#numbers.formatDecimal(stats.totalApprovedAmount, 1, 'COMMA', 2, 'POINT')} + ' lent in total'">35,000.00 lent in total</span>
         </a>
         <a class="stat rejected" th:href="@{/ui/applications(status='REJECTED')}">
             <span class="stat-label">Rejected</span>
-            <span class="stat-value" th:text="${stats.rejected}">2</span>
+            <span class="stat-value" data-count-up th:text="${stats.rejected}">2</span>
             <span class="stat-note" th:text="'Approval rate ' + ${stats.approvalRate} + '%'">Approval rate 77.8%</span>
         </a>
     </section>
 
-    <div class="columns">
+    <div class="columns reveal">
         <!-- Chart 1: one bar split by status. Each part grows by its count (CSS flex-grow), no JavaScript needed. -->
         <section class="card" aria-labelledby="by-status-title">
             <h2 id="by-status-title">Applications by status</h2>
@@ -82,22 +120,16 @@
         </section>
     </div>
 
-    <!-- "waiting" is a Spring Data Page: totalElements = how many SUBMITTED applications exist in total -->
-    <section>
+    <!-- "waiting" is a Spring Data Page: totalElements = how many SUBMITTED applications exist in total.
+         When nothing waits, the queue panel at the top already says so, so this section is left out. -->
+    <section class="reveal" th:if="${waiting.totalElements > 0}" aria-labelledby="waiting-title">
         <div class="section-head">
-            <h2>Waiting for a decision</h2>
-            <a th:if="${waiting.totalElements > 0}" th:href="@{/ui/applications(status='SUBMITTED')}">See all waiting applications</a>
+            <h2 id="waiting-title">Waiting for a decision</h2>
+            <a th:href="@{/ui/applications(status='SUBMITTED')}">See all waiting applications</a>
         </div>
-
-        <th:block th:if="${waiting.totalElements > 0}">
-            <div th:replace="~{fragments :: applicationTable(${waiting.content})}"></div>
-        </th:block>
-
-        <div class="empty-state" th:if="${waiting.totalElements == 0}">
-            <p>No applications are waiting for a decision. New ones appear here as soon as they are submitted.</p>
-            <a class="button quiet" th:href="@{/ui/applications/new}">Start an application</a>
-        </div>
+        <div th:replace="~{fragments :: applicationTable(${waiting.content})}"></div>
     </section>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

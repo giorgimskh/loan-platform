@@ -3,22 +3,22 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Document types')}"></head>
 <body>
-<header th:replace="~{fragments :: topbar('products')}"></header>
+<header th:replace="~{fragments :: topbar('document-types')}"></header>
 
 <main>
     <div th:replace="~{fragments :: flash}"></div>
 
     <div class="title-row">
         <div>
-            <h1>Document types <span class="count" th:text="${#lists.size(documentTypes)}">1</span></h1>
-            <p class="lead">The kinds of documents a loan product can require from a customer.</p>
+            <!-- The orange bar already shows the name of this page, so the heading is only for screen readers
+             (and for the browser's outline of the page); "visually-hidden" hides it on screen. -->
+            <h1 class="visually-hidden">Document types</h1>
+            <p class="lead"><strong class="lead-count"
+                th:text="${#lists.size(documentTypes)} + (${#lists.size(documentTypes) == 1} ? ' document type.' : ' document types.')">1 document type.</strong>
+                The kinds of documents a loan product can require from a customer.
+                Tick them on a <a th:href="@{/ui/products}">loan product</a> to make them required.</p>
         </div>
     </div>
-
-    <nav class="tabs" aria-label="Products section">
-        <a th:href="@{/ui/products}">Products</a>
-        <a class="current" th:href="@{/ui/document-types}">Document types</a>
-    </nav>
 
     <div class="split">
         <section aria-label="Existing document types">
@@ -67,5 +67,6 @@
         </aside>
     </div>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

@@ -1,60 +1,103 @@
 /*
-  Styles of the test website under /ui ("modern dashboard" design).
-  Order of this file: colours -> page frame -> text -> cards and numbers -> tables -> forms -> small parts -> phone.
+  Loan Platform website.
+  Style of a modern retail bank website: a white page, a two-row header (white bar + orange bar),
+  big uppercase page titles, rounded white cards with thin grey borders, real photos,
+  orange buttons and orange "more" links. Colour on data is only used for the status of an application.
+
+  Sections of this file:
+   1. design tokens (colours, font, sizes)     8. home page (photo banner, photo cards, figures, charts)
+   2. base elements                            9. application page (the "file" and the stamp)
+   3. header and footer                       10. loan products as cards
+   4. page layout                             11. customers, calculator, search
+   5. headings, text, links, labels           12. motion on every page
+   6. buttons and forms                       13. small screens
+   7. tables and the actions menu             14. reduced motion
+
+  Motion: mostly CSS. Pages come in softly when they open, the home banner and the charts animate,
+  the stamp lands on the application page, and links, buttons, cards and menus react to the mouse.
+  static/js/motion.js adds two things CSS cannot do alone: numbers that count up, and parts of the
+  home page that appear when they are scrolled into view.
+  Section 14 switches all of it off for people who asked their system for less motion.
 */
 
-/* ---------- colours and sizes, used everywhere below as var(--name) ---------- */
+/* ---------- 1. design tokens ---------- */
 
 :root {
-    --page: #f3f5fa;          /* the background behind the cards */
-    --surface: #ffffff;       /* cards, tables, the top bar */
-    --ink: #0f172a;           /* normal text */
-    --muted: #5b6b82;         /* less important text */
-    --line: #e3e8f0;          /* borders */
-    --soft: #f7f9fc;          /* table headers, quiet backgrounds */
+    /* Palette: the orange of the brand + a deep navy ("ink"). Orange is for action (buttons, links,
+       the header bar), navy is for weight and trust (text, the footer, the shade on the banner).
+       The page is a very light blue-grey, so the white cards stand out from it. */
+    --page: #f4f6fa;          /* page background */
+    --surface: #ffffff;       /* cards, header, inputs, menus */
+    --soft: #edf1f7;          /* light panels: calculator result, upload box, tags */
+    --text: #15213b;          /* body text and headings: navy, almost black */
+    --muted: #5a6579;         /* secondary text */
+    --line: #e1e6ee;          /* card borders and dividers */
+    --line-strong: #c5cddb;   /* input borders */
 
-    --brand: #2557e0;         /* links and main buttons */
-    --brand-dark: #1a44bd;
-    --brand-soft: #eaf0ff;
+    --ink: #14284b;           /* navy: the second brand colour */
+    --ink-deep: #0d1b36;      /* darker navy: the footer */
 
-    --green: #12784a;
-    --green-soft: #def5e8;
-    --amber: #9a5b05;
-    --amber-soft: #fdf0d3;
-    --red: #b3261e;
-    --red-soft: #fde5e3;
+    --accent: #ff5f00;        /* orange: header bar, main buttons */
+    --accent-hover: #eb5600;
+    --accent-text: #c84a00;   /* orange text on white (darker, so small text is readable) */
+    --accent-soft: #fff1e8;   /* light orange background */
 
-    --radius: 14px;
-    --shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px rgba(15, 23, 42, 0.05);
+    --shadow: 0 14px 30px rgba(20, 40, 75, 0.12);   /* a soft navy shadow under lifted cards */
+
+    /* the three statuses of an application: text colour and background */
+    --submitted: #2563eb;
+    --submitted-bg: #e8effe;
+    --approved: #12875a;
+    --approved-bg: #e2f5ec;
+    --rejected: #d43d33;
+    --rejected-bg: #fdecea;
+
+    --font: "Inter", system-ui, sans-serif;
+
+    --radius: 12px;           /* cards */
+    --radius-small: 8px;      /* buttons, inputs */
+    --content-width: 1280px;
 }
 
-* {
+/* ---------- 2. base elements ---------- */
+
+*, *::before, *::after {
     box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
     margin: 0;
     background: var(--page);
-    color: var(--ink);
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    font-family: var(--font);
     font-size: 15px;
-    line-height: 1.5;
+    line-height: 1.55;
+    /* the footer stays at the bottom even on a short page */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
-a {
-    color: var(--brand);
-    text-decoration: none;
-    font-weight: 500;
+img {
+    max-width: 100%;
+    height: auto;
 }
 
-a:hover {
-    text-decoration: underline;
+code {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.9em;
+    padding: 2px 6px;
+    background: var(--soft);
+    border-radius: 6px;
 }
 
-/* a clear ring around the element that has keyboard focus */
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
-summary:focus-visible, .scroll-box:focus-visible {
-    outline: 3px solid rgba(37, 87, 224, 0.35);
+/* one visible focus style for everything that can be reached with the Tab key */
+:focus-visible {
+    outline: 3px solid rgba(255, 95, 0, 0.45);
     outline-offset: 2px;
 }
 
@@ -64,254 +107,260 @@ summary:focus-visible, .scroll-box:focus-visible {
     width: 1px;
     height: 1px;
     overflow: hidden;
-    clip-path: inset(50%);
+    clip: rect(0 0 0 0);
     white-space: nowrap;
 }
 
-/* ---------- top bar ---------- */
+/* ---------- 3. header and footer ---------- */
 
-.topbar {
+.site-header {
     position: sticky;
     top: 0;
-    z-index: 20;
+    z-index: 30;
     background: var(--surface);
-    border-bottom: 1px solid var(--line);
 }
 
-.topbar-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 24px;
-    height: 64px;
+/* row 1: logo on the far left, areas, buttons on the right (full width, no centred container) */
+.header-top {
     display: flex;
     align-items: center;
-    gap: 28px;
+    gap: 40px;
+    min-height: 72px;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--line);
 }
 
 .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    color: var(--ink);
-    font-family: "Manrope", sans-serif;
-    font-weight: 800;
-    font-size: 17px;
-    white-space: nowrap;
-}
-
-.brand:hover {
+    gap: 12px;
+    color: var(--text);
     text-decoration: none;
 }
 
-.brand-mark {
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
-    background: linear-gradient(135deg, #3b6ef5, #1a44bd);
-    color: #fff;
+.brand img {
+    display: block;
+}
+
+.brand-text {
     display: grid;
-    place-items: center;
-    font-size: 16px;
+    line-height: 1.15;
 }
 
-.topbar nav {
-    display: flex;
-    gap: 4px;
-    flex: 1;
-}
-
-.topbar nav a {
-    padding: 8px 14px;
-    border-radius: 999px;
-    color: var(--muted);
-    white-space: nowrap;
-}
-
-.topbar nav a:hover {
-    background: var(--soft);
-    color: var(--ink);
-    text-decoration: none;
-}
-
-.topbar nav a.current {
-    background: var(--brand-soft);
-    color: var(--brand-dark);
-    font-weight: 600;
-}
-
-.docs-link {
-    padding: 7px 14px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    color: var(--ink);
-    white-space: nowrap;
-}
-
-.docs-link:hover {
-    border-color: var(--brand);
-    color: var(--brand);
-    text-decoration: none;
-}
-
-/* ---------- page frame ---------- */
-
-main {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 32px 24px 64px;
-}
-
-/* form pages are easier to read when they are not full width */
-main.narrow {
-    max-width: 760px;
-}
-
-main > section, main > .columns, main > .split, main > .detail, main > .stats {
-    margin-top: 24px;
-}
-
-/* ---------- text ---------- */
-
-h1, h2, h3 {
-    font-family: "Manrope", sans-serif;
-    line-height: 1.25;
-    margin: 0;
-}
-
-h1 {
-    font-size: 28px;
+.brand-name {
+    font-size: 19px;
     font-weight: 800;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.01em;
 }
 
-h2 {
-    font-size: 18px;
-    font-weight: 700;
-    margin-bottom: 14px;
-}
-
-h3 {
-    font-size: 15px;
-    font-weight: 700;
-    margin-bottom: 8px;
-}
-
-.title-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 16px;
-    margin-bottom: 12px;
-}
-
-.section-head h2 {
-    margin-bottom: 0;
-}
-
-/* the small number next to a title, e.g. "Customers 3" */
-.count {
-    display: inline-block;
-    margin-left: 6px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: var(--brand-soft);
-    color: var(--brand-dark);
-    font-family: "Inter", sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0;
-    vertical-align: middle;
-}
-
-.lead {
-    margin: 6px 0 0;
+.brand-note {
     color: var(--muted);
-}
-
-.muted {
-    color: var(--muted);
-}
-
-.back {
-    margin: 0 0 16px;
-}
-
-.back a::before {
-    content: "\2190\00a0"; /* a left arrow and a space */
-}
-
-code {
-    padding: 2px 6px;
-    border-radius: 6px;
-    background: var(--soft);
-    border: 1px solid var(--line);
-    font-size: 13px;
-}
-
-/* green and red messages after an action */
-.notice {
-    margin: 0 0 20px;
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid;
+    font-size: 12px;
     font-weight: 500;
 }
 
-.notice p {
-    margin: 0;
+/* the two areas of the website: Daily work and Setup */
+.areas {
+    display: flex;
+    gap: 28px;
 }
 
-.notice.success {
-    background: var(--green-soft);
-    border-color: #a9e2c2;
-    color: #0c5a37;
+.areas a {
+    color: var(--text);
+    font-weight: 500;
+    text-decoration: none;
 }
 
-.notice.error {
-    background: var(--red-soft);
-    border-color: #f5b9b4;
-    color: #8f1d17;
+.areas a:hover {
+    color: var(--accent-text);
 }
 
-/* shown where a list would be, when the list is empty */
-.empty-state {
-    padding: 40px 24px;
-    border: 1px dashed #c9d2e0;
-    border-radius: var(--radius);
-    text-align: center;
+.areas a.current {
+    color: var(--accent-text);
+    font-weight: 700;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-left: auto;
+}
+
+.docs-link {
     color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
 }
 
-.empty-state p {
+.docs-link:hover {
+    color: var(--text);
+}
+
+/* row 2: the orange bar with the pages of the open area */
+.header-tabs {
+    display: flex;
+    gap: 8px;
+    padding: 0 32px;
+    background: var(--accent);
+    overflow-x: auto;          /* on a narrow screen: swipe sideways */
+    scrollbar-width: none;     /* without a scrollbar strip */
+}
+
+.header-tabs a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0 18px;
+    color: #111111;           /* black text on orange is easier to read than white */
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.header-tabs a:first-child {
+    padding-left: 0;
+}
+
+/* a black line under the tab that grows from the left on hover.
+   scaleX(0) = no width, scaleX(1) = full width; "transition" animates the change. */
+.header-tabs a::before {
+    content: "";
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 10px;
+    height: 2px;
+    background: #111111;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 220ms ease;
+}
+
+.header-tabs a:first-child::before {
+    left: 0;
+}
+
+.header-tabs a:hover::before {
+    transform: scaleX(1);
+}
+
+.header-tabs a.current {
+    font-weight: 700;
+}
+
+/* a small white triangle under the open tab, pointing into the page */
+.header-tabs a.current::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    margin-left: -7px;
+    border: 7px solid transparent;
+    border-bottom-color: var(--page);
+}
+
+.header-tabs a.current:first-child::after {
+    left: calc(50% - 9px); /* the first tab has no left padding, so its centre is further left */
+}
+
+/* the footer at the bottom of every page: dark navy with light text, it closes the page */
+.site-footer {
+    margin-top: auto; /* pushed to the bottom by the flex column of <body> */
+    background: var(--ink-deep);
+    color: #ffffff;
+}
+
+.footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 32px 64px;
+    max-width: var(--content-width);
     margin: 0 auto;
-    max-width: 460px;
+    padding: 40px 40px 28px;
 }
 
-.empty-state .button {
-    margin-top: 16px;
+.footer-brand {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    max-width: 320px;
 }
 
-.empty-note {
+.footer-name {
     margin: 0;
-    color: var(--muted);
+    font-weight: 800;
 }
 
-/* ---------- cards and page layouts ---------- */
+.footer-note {
+    margin: 2px 0 0;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 14px;
+}
 
-.card {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 24px;
+.footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px 64px;
+}
+
+.footer-links div {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+}
+
+.footer-title {
+    margin: 0 0 4px;
+    font-weight: 700;
+}
+
+.footer-links a {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    text-decoration: none;
+    transition: color 150ms ease;
+}
+
+/* plain orange (not the darker text orange): it is bright enough on navy */
+.footer-links a:hover {
+    color: var(--accent);
+}
+
+/* as wide as the footer content above it: the content width minus the side padding */
+.footer-bottom {
+    width: calc(100% - 80px);
+    max-width: calc(var(--content-width) - 80px);
+    margin: 0 auto;
+    padding: 16px 0 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+}
+
+/* ---------- 4. page layout ---------- */
+
+main {
+    width: 100%;
+    max-width: var(--content-width);
+    margin: 0 auto;
+    padding: 40px 40px 80px;
+}
+
+/* forms get a narrower column, so lines stay short and easy to read */
+main.narrow {
+    max-width: 800px;
+}
+
+/* two columns: a list on the left, a form on the right */
+.split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 28px;
+    align-items: start;
 }
 
 /* two equal columns */
@@ -320,805 +369,476 @@ code {
     grid-template-columns: 1fr 1fr;
     gap: 24px;
     align-items: start;
+    margin-bottom: 48px;
 }
 
-/* a list on the left and a narrow form on the right */
-.split {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 24px;
-    align-items: start;
-}
-
-/* the application page: wide work column, narrow history column */
-.detail {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 24px;
-    align-items: start;
-}
-
-.detail-main {
-    display: grid;
-    gap: 24px;
-}
-
-/* stays in view while the rest of the page scrolls (80px = below the top bar) */
-.sticky, .detail-side {
+/* stays in view while the page scrolls (below the sticky header) */
+.sticky {
     position: sticky;
-    top: 88px;
+    top: 144px;
 }
 
-/* ---------- the four big numbers on the overview ---------- */
-
-.stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-}
-
-.stat {
-    display: grid;
-    gap: 4px;
-    padding: 20px;
+/* a white card with a thin grey border */
+.card {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    color: var(--ink);
-    border-top: 4px solid var(--brand);
+    padding: 26px 28px;
 }
 
-.stat:hover {
-    text-decoration: none;
-    border-color: #c5d2ea;
-    border-top-color: var(--brand);
+/* cards stacked in one column get space between them (in a grid the gap does that) */
+.detail-main > .card + .card, .detail-side > .card + .card {
+    margin-top: 24px;
 }
 
-.stat.waiting {
-    border-top-color: #e0a019;
+/* ---------- 5. headings, text, links, labels ---------- */
+
+h1, h2, h3 {
+    margin: 0;
+    color: var(--text);
+    font-weight: 700;
+    line-height: 1.2;
 }
 
-.stat.approved {
-    border-top-color: #22a565;
-}
-
-.stat.rejected {
-    border-top-color: #dc4a41;
-}
-
-.stat-label {
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.stat-value {
-    font-family: "Manrope", sans-serif;
+/* page titles are big and in capitals, like on bank websites */
+h1 {
     font-size: 36px;
     font-weight: 800;
-    line-height: 1.1;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+h2 {
+    font-size: 22px;
+    margin-bottom: 14px;
+}
+
+h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+p {
+    margin: 0 0 12px;
+}
+
+a {
+    color: var(--accent-text);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.lead {
+    color: var(--muted);
+    max-width: 62ch;
+    margin: 8px 0 0;
+    font-size: 16px;
+}
+
+.muted, .sub {
+    color: var(--muted);
+}
+
+.sub {
+    display: block;
+    font-size: 13px;
+}
+
+/* figures: equal-width digits so columns of numbers line up */
+.number, .digits, .count, .stat-value, .result-value, .banner-number, .file-amount {
     font-variant-numeric: tabular-nums;
 }
 
-.stat-note {
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 400;
-}
-
-/* ---------- charts made of plain HTML and CSS ---------- */
-
-/* one bar split into coloured parts; each part has flex-grow = its number */
-.split-bar {
+/* the page title with its main button on the right */
+.title-row {
     display: flex;
-    gap: 3px;
-    height: 18px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+/* the number at the start of the lead line, e.g. "12 applications." */
+.lead-count {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.title-row .lead {
+    margin: 0;
+}
+
+/* a centred heading between sections */
+.section-title {
+    margin: 56px 0 24px;
+    font-size: 28px;
+    text-align: center;
+}
+
+/* the number next to a title, e.g. "Customers 12" */
+.count {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 10px;
     border-radius: 999px;
-    overflow: hidden;
-    margin: 6px 0 14px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 0.5em;
+    font-weight: 700;
+    letter-spacing: 0;
+    vertical-align: middle;
 }
 
-.split-bar span {
-    min-width: 6px;
+.back {
+    margin: 0 0 20px;
+    font-size: 14px;
 }
 
-.SUBMITTED { --tone: #e0a019; }
-.APPROVED  { --tone: #22a565; }
-.REJECTED  { --tone: #dc4a41; }
-.principal { --tone: #2557e0; }
-.interest  { --tone: #f08c3a; }
-
-.split-bar span, .dot {
-    background: var(--tone);
+.back a {
+    color: var(--muted);
+    font-weight: 600;
 }
 
+/* a small "<" drawn with two borders of a square turned by 45 degrees */
+.back a::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 8px;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    vertical-align: 1px;
+}
+
+.section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.section-head h2 {
+    margin: 0;
+}
+
+/* the "LEARN MORE" style link: small, orange, in capitals */
+.more {
+    display: inline-block;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.more:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+/* a small ">" after a "more" link, drawn with two borders like the back arrow.
+   On hover it moves a little to the right, as if pointing the way.
+   Not on <button class="more"> (Delete): a button does an action, it does not lead anywhere. */
+a.more::after, span.more::after {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 8px;
+    border-right: 2px solid currentColor;
+    border-top: 2px solid currentColor;
+    transform: rotate(45deg);
+    vertical-align: 1px;
+    transition: transform 200ms ease;
+}
+
+a.more:hover::after,
+.promo:hover .more::after {
+    transform: translateX(4px) rotate(45deg);
+}
+
+/* a <button> with class "more" (e.g. Delete on a product card) must not look like a normal button.
+   "button.more.danger" is more specific than "button.danger" (defined further down), so these values win. */
+button.more, button.more:hover, button.more.danger, button.more.danger:hover {
+    min-height: 0;
+    background: none;
+}
+
+.more.danger {
+    color: var(--rejected);
+}
+
+/* messages after an action: green when it worked, red when it was refused */
+.notice {
+    margin: 0 0 24px;
+    padding: 14px 18px;
+    border-radius: var(--radius-small);
+    font-weight: 600;
+    /* slides down into place, so the eye notices the result of the action */
+    animation: notice-in 350ms ease-out both;
+}
+
+@keyframes notice-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+}
+
+.notice p {
+    margin: 0;
+}
+
+h1 + .notice {
+    margin-top: 20px;
+}
+
+.notice.success {
+    background: var(--approved-bg);
+    color: #11603a;
+}
+
+.notice.error {
+    background: var(--rejected-bg);
+    color: #9a1f19;
+}
+
+/* shown instead of a list when it has nothing in it */
+.empty-state {
+    padding: 40px 32px;
+    border-radius: var(--radius);
+    background: var(--soft);
+    color: var(--muted);
+    text-align: center;
+}
+
+.empty-state p {
+    max-width: 60ch;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.empty-note {
+    color: var(--muted);
+    margin: 0;
+}
+
+/* the status of an application as a small rounded label */
+.status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status.SUBMITTED { color: var(--submitted); background: var(--submitted-bg); }
+.status.APPROVED { color: var(--approved); background: var(--approved-bg); }
+.status.REJECTED { color: var(--rejected); background: var(--rejected-bg); }
+
+/* a small coloured dot in legends */
 .dot {
     display: inline-block;
     width: 10px;
     height: 10px;
-    border-radius: 50%;
     margin-right: 8px;
+    border-radius: 50%;
 }
 
-.legend {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 24px;
-    color: var(--muted);
-}
-
-.legend strong {
-    margin-left: 4px;
-    color: var(--ink);
-}
-
-/* one horizontal bar per product */
-.bars {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 16px;
-}
-
-.bars li {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 6px 12px;
-}
-
-.bar-label {
-    font-weight: 500;
-}
-
-.bar-value {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-}
-
-.bar-track {
-    grid-column: 1 / -1;
-    height: 10px;
-    border-radius: 999px;
-    background: #e9eef6;
-    overflow: hidden;
-}
-
-/* --value and --max are set in home.html; the width is the share of the total */
-.bar-fill {
-    display: block;
-    height: 100%;
-    min-width: 6px;
-    border-radius: 999px;
-    background: var(--brand);
-    width: calc(100% * var(--value) / var(--max));
-}
-
-/* ---------- tables ---------- */
-
-.table-card {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-}
-
-.table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.table th, .table td {
-    padding: 13px 16px;
-    text-align: left;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--line);
-}
-
-.table th {
-    background: var(--soft);
-    color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-}
-
-/* round the top corners of the header, because the card itself does not cut its content */
-.table-card .table th:first-child {
-    border-top-left-radius: var(--radius);
-}
-
-.table-card .table th:last-child {
-    border-top-right-radius: var(--radius);
-}
-
-.table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.table tbody tr:hover {
-    background: #fafbfe;
-}
-
-/* numbers are right-aligned and all digits have the same width, so columns line up */
-.table .number {
-    text-align: right;
-    white-space: nowrap;
-}
-
-.table .number, .digits {
-    font-variant-numeric: tabular-nums;
-}
-
-/* a table inside a card: no own background, lines only */
-.table.inner {
-    margin-top: 4px;
-}
-
-.table.inner th {
-    background: none;
-    border-bottom: 1px solid var(--line);
-}
-
-.strong-link {
-    font-weight: 600;
-}
-
-/* small second line inside a table cell */
-.sub {
-    display: block;
-    color: var(--muted);
-    font-size: 13px;
-}
-
-.row-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 16px;
-    white-space: nowrap;
-}
-
-td.row-actions {
-    display: table-cell;
-    text-align: right;
-}
-
-td.row-actions > * {
-    display: inline-block;
-    margin-left: 14px;
-    vertical-align: middle;
-}
-
-.row-actions form {
-    margin: 0;
-}
+.dot.SUBMITTED { background: var(--submitted); }
+.dot.APPROVED { background: var(--approved); }
+.dot.REJECTED { background: var(--rejected); }
+.dot.principal { background: var(--text); }
+.dot.interest { background: var(--accent); }
 
 .tag {
     display: inline-block;
     margin: 2px 4px 2px 0;
-    padding: 2px 10px;
+    padding: 1px 10px;
     border-radius: 999px;
     background: var(--soft);
-    border: 1px solid var(--line);
-    font-size: 13px;
-}
-
-/* ---------- status label ---------- */
-
-.status {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 3px 11px 3px 9px;
-    border-radius: 999px;
     font-size: 13px;
     font-weight: 600;
-    white-space: nowrap;
 }
 
-.status::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-}
+/* ---------- 6. buttons and forms ---------- */
 
-.status.SUBMITTED {
-    background: var(--amber-soft);
-    color: var(--amber);
-}
-
-.status.APPROVED {
-    background: var(--green-soft);
-    color: var(--green);
-}
-
-.status.REJECTED {
-    background: var(--red-soft);
-    color: var(--red);
-}
-
-/* ---------- the "Actions" menu of a table row (a <details> element) ---------- */
-
-.menu {
-    position: relative;
-    text-align: left;
-}
-
-.menu summary {
-    list-style: none;
+/* a <button> and a link with class="button" look the same: orange, in capitals */
+button, .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: var(--radius-small);
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    text-decoration: none;
     cursor: pointer;
-    padding: 6px 12px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
-    background: var(--surface);
-    font-weight: 500;
-    user-select: none;
+    /* the colour changes smoothly on hover; the button sinks a little when pressed */
+    transition: background-color 150ms ease, transform 100ms ease;
 }
 
-.menu summary::-webkit-details-marker {
-    display: none;
-}
-
-.menu summary::after {
-    content: "\25BE"; /* small triangle pointing down */
-    margin-left: 6px;
-    color: var(--muted);
-}
-
-.menu summary:hover, .menu[open] summary {
-    border-color: var(--brand);
-    color: var(--brand);
-}
-
-.menu-panel {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
-    z-index: 10;
-    width: 250px;
-    padding: 8px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
-    display: grid;
-    gap: 2px;
-}
-
-.menu-panel > a, .menu-panel > form > button.link {
-    display: block;
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 8px;
-    text-align: left;
-    color: var(--ink);
-}
-
-.menu-panel > a:hover, .menu-panel > form > button.link:hover {
-    background: var(--soft);
+button:hover, .button:hover {
+    background: var(--accent-hover);
     text-decoration: none;
 }
 
-.menu-panel > form > button.link.danger {
-    color: var(--red);
+button:active, .button:active {
+    transform: translateY(1px) scale(0.98);
 }
 
-.menu-panel form {
-    margin: 0;
-}
-
-/* reject needs a reason, so this entry is an input with a button */
-.menu-panel .menu-reject {
-    display: grid;
-    gap: 4px;
-    margin: 4px 0;
-    padding: 8px 0;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-}
-
-.menu-reject input {
-    height: 36px;
-    font-size: 14px;
-}
-
-/* ---------- application page ---------- */
-
-.file-head {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-bottom: 20px;
-}
-
-.file-head .edit-link {
-    margin-left: auto;
-}
-
-/* label above value, several next to each other */
-.facts {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 18px 24px;
-    margin: 0;
-}
-
-.facts dt, .person-facts dt, .totals dt {
-    color: var(--muted);
+.button.small {
+    min-height: 38px;
+    padding: 0 16px;
     font-size: 13px;
 }
 
-.facts dd {
-    margin: 2px 0 0;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.decision {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 16px;
-    margin-top: 16px;
-}
-
-.decision-option {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--soft);
-}
-
-.decision-option h3, .decision-option .help, .decision-option .field {
-    margin: 0;
-}
-
-.decision-option .field {
+/* full width, e.g. under the calculator result */
+.button.wide {
     width: 100%;
 }
 
-/* the button sits at the bottom, so both options end on the same line */
-.decision-option button {
-    margin-top: auto;
+/* a less important button: light grey */
+button.quiet, .button.quiet {
+    background: var(--soft);
+    color: var(--text);
 }
 
-.cancel-line {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 16px 0 0;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
+button.quiet:hover, .button.quiet:hover {
+    background: #e2e8f1;
 }
 
-/* rule 7: which required documents are uploaded */
-.checklist-box {
-    margin-top: 16px;
+/* deletes or rejects something */
+button.danger {
+    background: var(--rejected);
 }
 
-.checklist {
-    list-style: none;
-    margin: 0;
+button.danger:hover {
+    background: #b02a23;
+}
+
+/* a button that looks like a link (used inside forms that only send POST) */
+button.link {
+    min-height: 0;
     padding: 0;
-    display: grid;
-    gap: 8px;
-}
-
-.checklist li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid;
-    font-weight: 500;
-}
-
-.checklist li.done {
-    background: var(--green-soft);
-    border-color: #a9e2c2;
-    color: #0c5a37;
-}
-
-.checklist li.missing {
-    background: var(--amber-soft);
-    border-color: #f1d28d;
-    color: #7a4704;
-}
-
-.check-state {
-    font-size: 13px;
+    background: none;
+    color: var(--accent-text);
+    font-size: inherit;
     font-weight: 600;
-}
-
-.upload {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--line);
-}
-
-/* label / value rows for money totals */
-.totals {
-    display: grid;
-    gap: 10px;
-    margin: 0 0 20px;
-}
-
-.totals div {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.totals dt {
-    font-size: 14px;
-}
-
-.totals dd {
-    margin: 0;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.totals .total {
-    padding-top: 10px;
-    border-top: 1px solid var(--line);
-}
-
-.totals .total dt {
-    color: var(--ink);
-    font-weight: 600;
-}
-
-/* the same totals next to each other, above the schedule table */
-.totals.wide {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin: 16px 0;
-}
-
-.totals.wide div {
-    display: block;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: var(--soft);
-}
-
-.totals.wide dd {
-    font-size: 18px;
-}
-
-/* a long table scrolls inside this box; its header stays visible */
-.scroll-box {
-    max-height: 380px;
-    overflow: auto;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-}
-
-.scroll-box .table.inner {
-    margin: 0;
-}
-
-.scroll-box .table th {
-    position: sticky;
-    top: 0;
-    background: var(--soft);
-}
-
-/* history: a vertical line with one dot per status change */
-.timeline {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.timeline li {
-    position: relative;
-    display: grid;
-    gap: 2px;
-    padding: 0 0 20px 26px;
-}
-
-.timeline li::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 4px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--tone);
-    box-shadow: 0 0 0 3px var(--surface);
-}
-
-/* the line that connects a dot with the next one */
-.timeline li::after {
-    content: "";
-    position: absolute;
-    left: 5px;
-    top: 16px;
-    bottom: -4px;
-    width: 2px;
-    background: var(--line);
-}
-
-.timeline li:last-child {
-    padding-bottom: 0;
-}
-
-.timeline li:last-child::after {
-    display: none;
-}
-
-.timeline-status {
-    font-weight: 600;
-}
-
-.timeline-time {
-    color: var(--muted);
-    font-size: 13px;
-}
-
-.timeline-comment {
-    margin-top: 4px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: var(--soft);
-    font-size: 14px;
-}
-
-/* ---------- customers ---------- */
-
-.searchbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-}
-
-.searchbar input {
-    flex: 1;
-}
-
-.people {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 12px;
-}
-
-.people li {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 18px 20px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-}
-
-.avatar {
-    flex: none;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--brand-soft);
-    color: var(--brand-dark);
-    display: grid;
-    place-items: center;
-    font-family: "Manrope", sans-serif;
-    font-weight: 800;
-    font-size: 18px;
-    text-transform: uppercase;
-}
-
-.person {
-    flex: 1;
-    min-width: 0;
-}
-
-.person-name {
-    margin: 0 0 8px;
-    font-family: "Manrope", sans-serif;
-    font-size: 17px;
-    font-weight: 700;
-    text-transform: capitalize;
-}
-
-.person-id {
-    margin-left: 8px;
-    padding: 2px 9px;
-    border-radius: 999px;
-    background: var(--soft);
-    border: 1px solid var(--line);
-    color: var(--muted);
-    font-family: "Inter", sans-serif;
-    font-size: 12px;
-    font-weight: 500;
+    letter-spacing: 0;
     text-transform: none;
 }
 
-.person-facts {
+button.link:hover {
+    background: none;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+button.link.danger {
+    color: var(--rejected);
+}
+
+.form-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px 28px;
-    margin: 0 0 10px;
-}
-
-.person-facts dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-}
-
-.person-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 14px;
-    margin: 0;
-    font-size: 14px;
-}
-
-.person-links span {
-    color: var(--muted);
-}
-
-.person-actions {
-    flex: none;
-    display: grid;
-    gap: 10px;
-    justify-items: end;
-}
-
-/* ---------- forms ---------- */
-
-.form-page {
-    margin-top: 20px;
+    align-items: center;
+    gap: 20px;
+    margin-top: 8px;
 }
 
 .field {
-    margin-bottom: 16px;
+    display: grid;
+    gap: 6px;
+    margin-bottom: 18px;
 }
 
-.field label, legend, .label {
-    display: block;
-    margin-bottom: 6px;
+label, .label, legend {
+    color: var(--text);
+    font-weight: 700;
     font-size: 14px;
-    font-weight: 600;
 }
 
-fieldset {
-    margin: 0 0 16px;
-    padding: 16px 16px 2px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
+input[type="text"], input[type="search"], input[type="number"], select {
+    width: 100%;
+    height: 48px;
+    padding: 0 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-small);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    /* the border and the orange ring fade in instead of jumping */
+    transition: border-color 150ms ease, outline-color 150ms ease;
 }
 
-legend {
-    padding: 0 6px;
-    margin-bottom: 0;
+input:hover, select:hover {
+    border-color: var(--muted);
 }
 
-fieldset .field label {
-    font-weight: 500;
+input:focus-visible, select:focus-visible {
+    outline: 3px solid rgba(255, 95, 0, 0.25);
+    outline-offset: 0;
+    border-color: var(--accent);
+}
+
+input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-small);
+    background: var(--surface);
+    font: inherit;
+    font-size: 14px;
+}
+
+input[type="file"]::file-selector-button {
+    margin-right: 12px;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.help {
+    margin: 0;
     color: var(--muted);
+    font-size: 13px;
+}
+
+/* a field the server refused: red border and the error instead of the hint */
+.field.invalid input, .field.invalid select {
+    border-color: var(--rejected);
+    background: #fffafa;
+}
+
+.field.invalid .help, .checks.invalid .help:last-child {
+    color: var(--rejected);
+    font-weight: 600;
 }
 
 /* two fields next to each other */
@@ -1128,50 +848,18 @@ fieldset .field label {
     gap: 0 16px;
 }
 
-input[type="text"], input[type="number"], input[type="search"], input[type="file"], select {
-    width: 100%;
-    padding: 0 12px;
-    border: 1px solid #cfd8e6;
-    border-radius: 10px;
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
+fieldset {
+    margin: 0 0 18px;
+    padding: 18px 20px 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
 }
 
-input[type="text"], input[type="number"], input[type="search"], select {
-    height: 42px;
+legend {
+    padding: 0 6px;
 }
 
-input[type="file"] {
-    padding: 8px 12px;
-}
-
-input:hover, select:hover {
-    border-color: #a9b7cc;
-}
-
-input:focus, select:focus {
-    border-color: var(--brand);
-}
-
-.help {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-}
-
-/* a field that failed validation: red border, and the help line shows the error */
-.field.invalid input, .field.invalid select {
-    border-color: var(--red);
-    background: #fffafa;
-}
-
-.field.invalid .help, .checks.invalid .help {
-    color: var(--red);
-    font-weight: 500;
-}
-
-/* the checkbox list of the product form */
+/* the document type checkboxes on the product form */
 .checks {
     padding-bottom: 14px;
 }
@@ -1181,230 +869,1388 @@ input:focus, select:focus {
     align-items: center;
     gap: 10px;
     padding: 6px 0;
+    font-weight: 500;
     cursor: pointer;
 }
 
 .check input {
     width: 18px;
     height: 18px;
-    accent-color: var(--brand);
+    accent-color: var(--accent);
 }
 
-/* a value that is shown but cannot be changed */
 .fixed-value {
     margin: 0;
-    padding: 10px 12px;
-    border-radius: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-small);
     background: var(--soft);
+    font-weight: 600;
+}
+
+/* a whole page that is one form */
+.form-page {
+    margin-top: 24px;
+}
+
+/* ---------- 7. tables and the actions menu ---------- */
+
+.table-card {
+    background: var(--surface);
     border: 1px solid var(--line);
-    font-weight: 600;
+    border-radius: var(--radius);
 }
 
-.form-actions {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    margin-top: 20px;
+.table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-/* ---------- buttons ---------- */
-
-button, .button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 42px;
-    padding: 0 18px;
-    border: 1px solid var(--brand);
-    border-radius: 10px;
-    background: var(--brand);
-    color: #fff;
-    font: inherit;
+.table th {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
     font-weight: 600;
-    cursor: pointer;
+    text-align: left;
     white-space: nowrap;
 }
 
-button:hover, .button:hover {
-    background: var(--brand-dark);
-    border-color: var(--brand-dark);
+.table td {
+    padding: 15px 18px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.table tbody tr:hover td {
+    background: #f8fafd;
+}
+
+.table .number {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* a table inside a card: no own border, aligned with the card's text */
+.table.inner th:first-child, .table.inner td:first-child {
+    padding-left: 0;
+}
+
+.table.inner th:last-child, .table.inner td:last-child {
+    padding-right: 0;
+}
+
+.strong-link {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* the links and buttons at the end of a row */
+.row-actions {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.row-actions > a, .row-actions > form {
+    margin-left: 16px;
+    font-weight: 600;
+}
+
+.row-actions form {
+    display: inline;
+}
+
+/* the "Actions" menu: a <details> element, it opens and closes without JavaScript */
+.menu {
+    position: relative;
+    display: inline-block;
+    text-align: left;
+}
+
+.menu summary {
+    list-style: none;
+    padding: 6px 14px;
+    border-radius: var(--radius-small);
+    background: var(--soft);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+}
+
+.menu summary::-webkit-details-marker {
+    display: none;
+}
+
+/* a small "v" drawn the same way as the back arrow */
+.menu summary::after {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 9px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg);
+    vertical-align: 3px;
+    transition: transform 200ms ease;
+}
+
+/* an open menu turns its "v" upside down */
+.menu[open] summary::after {
+    transform: rotate(225deg);
+    vertical-align: -1px;
+}
+
+.menu summary:hover {
+    background: #e2e8f1;
+}
+
+.menu[open] summary {
+    background: var(--accent);
+    color: #fff;
+}
+
+.menu[open] summary::after {
+    border-color: #fff;
+}
+
+.menu-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 20;
+    width: 260px;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(20, 40, 75, 0.16);
+    white-space: normal;
+    /* the panel fades in and drops a few pixels each time the menu opens */
+    animation: menu-in 160ms ease-out;
+}
+
+@keyframes menu-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+.menu-panel form {
+    margin: 0;
+}
+
+.menu-panel > a, .menu-panel > form > button.link {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: var(--radius-small);
+    color: var(--text);
+    text-align: left;
+    font-weight: 600;
     text-decoration: none;
 }
 
-/* second-level button: white with a border */
-button.quiet, .button.quiet {
+.menu-panel > a:hover, .menu-panel > form > button.link:hover {
+    background: var(--soft);
+    text-decoration: none;
+}
+
+.menu-panel > form > button.link.danger {
+    color: var(--rejected);
+}
+
+/* rejecting needs a reason, so this entry is a small input with its button */
+.menu-panel .menu-reject {
+    display: grid;
+    gap: 6px;
+    margin: 6px 0;
+    padding: 10px;
+    border-radius: var(--radius-small);
+    background: var(--soft);
+}
+
+.menu-panel .menu-reject input {
+    height: 38px;
+    font-size: 14px;
+}
+
+.menu-panel .menu-reject button.link {
+    justify-self: start;
+}
+
+/* a long table scrolls inside this box */
+.scroll-box {
+    max-height: 420px;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+}
+
+.scroll-box thead th {
+    position: sticky;
+    top: 0;
     background: var(--surface);
-    border-color: #cfd8e6;
-    color: var(--ink);
 }
 
-button.quiet:hover, .button.quiet:hover {
-    background: var(--surface);
-    border-color: var(--brand);
-    color: var(--brand);
-}
-
-button.danger {
-    background: var(--red);
-    border-color: var(--red);
-}
-
-button.danger:hover {
-    background: #8f1d17;
-    border-color: #8f1d17;
-}
-
-/* a button that looks like a link (used inside forms that only have one action) */
-button.link {
-    height: auto;
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--brand);
-    font-weight: 500;
-}
-
-button.link:hover {
-    background: none;
-    text-decoration: underline;
-}
-
-button.link.danger, button.link.danger:hover {
-    background: none;
-    color: var(--red);
-}
-
-/* ---------- small parts ---------- */
-
-/* tabs: a row of links, the current one is white */
+/* the status filter above the applications table: rounded "chips" */
 .tabs {
-    display: inline-flex;
-    gap: 4px;
-    margin: 20px 0 16px;
-    padding: 4px;
-    border-radius: 12px;
-    background: #e6ebf3;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    overflow-x: auto;
 }
 
 .tabs a {
-    padding: 7px 16px;
-    border-radius: 9px;
-    color: var(--muted);
+    padding: 7px 18px;
+    border-radius: 999px;
+    background: var(--soft);
+    color: var(--text);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
 }
 
 .tabs a:hover {
-    color: var(--ink);
-    text-decoration: none;
+    background: #e2e8f1;
 }
 
 .tabs a.current {
-    background: var(--surface);
-    color: var(--ink);
-    font-weight: 600;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .pager {
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: 18px;
-    margin-top: 16px;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+/* ---------- 8. home page ---------- */
+
+/* the big banner: a photo, with the text on a dark shade over its left part */
+.banner {
+    position: relative;   /* the photo and the shade are placed inside it */
+    display: flex;
+    align-items: center;
+    min-height: 340px;
+    padding: 44px 48px;
+    border-radius: 16px;
+    overflow: hidden;     /* cuts the photo at the rounded corners */
+    background: var(--ink-deep);  /* shown while the photo is loading */
+    color: rgba(255, 255, 255, 0.88);
+}
+
+/* the photo covers the whole banner; object-fit: cover crops it instead of stretching it */
+.banner-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 70% 30%;
+    /* when the page opens, the photo slowly zooms out to its place */
+    animation: banner-photo-in 1400ms ease-out both;
+}
+
+@keyframes banner-photo-in {
+    from {
+        transform: scale(1.08);
+    }
+}
+
+/* the dark shade: almost black on the left, transparent on the right */
+.banner::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(90deg, rgba(13, 27, 54, 0.94) 0%, rgba(13, 27, 54, 0.78) 40%, rgba(13, 27, 54, 0) 75%);
+}
+
+.banner-text {
+    position: relative;
+    z-index: 2;           /* above the shade */
+    max-width: 520px;
+}
+
+/* the text comes in line by line: number, heading, sentence, button.
+   Each line waits a bit longer (animation-delay), so they arrive one after another.
+   "both" keeps a line invisible during its delay. */
+.banner-text > * {
+    animation: rise-in 600ms ease-out both;
+}
+
+.banner-text > :nth-child(2) { animation-delay: 120ms; }
+.banner-text > :nth-child(3) { animation-delay: 240ms; }
+.banner-text > :nth-child(4) { animation-delay: 360ms; }
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+}
+
+/* ".banner .banner-number" and not just ".banner-number": it must beat the ".banner p" rule below */
+.banner .banner-number {
+    margin: 0;
+    color: #fff;
+    font-size: 72px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.banner h2 {
+    margin: 6px 0 10px;
+    color: #fff;
+    font-size: 30px;
+}
+
+.banner p {
+    margin-bottom: 22px;
+    font-size: 16px;
+}
+
+/* two shortcuts as cards: a photo on top, then the title, a short text and a link */
+.promo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 32px;
+}
+
+.promo {
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    text-decoration: none;
+    overflow: hidden;     /* cuts the photo at the rounded corners */
+    transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+}
+
+/* on hover (or keyboard focus) the card lifts up a little and gets a soft shadow */
+.promo:hover, .promo:focus-visible {
+    border-color: var(--line-strong);
+    text-decoration: none;
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+}
+
+.promo-photo {
+    display: block;
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    transition: transform 600ms ease;
+}
+
+/* ...and its photo slowly zooms in; overflow: hidden on the card keeps it inside the corners */
+.promo:hover .promo-photo, .promo:focus-visible .promo-photo {
+    transform: scale(1.05);
+}
+
+.promo-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 22px 26px 26px;
+}
+
+.promo-title {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.promo-text {
     color: var(--muted);
 }
 
-/* the search panel under the applications table: fields and button on one line */
-.search form {
+.promo .more {
+    margin-top: 4px;
+}
+
+/* the key figures: one rounded panel with three links */
+.stats {
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 24px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.stat {
+    display: grid;
+    gap: 2px;
+    padding: 22px 26px;
+    color: var(--text);
+    text-decoration: none;
+    transition: background-color 200ms ease;
+}
+
+.stat + .stat {
+    border-left: 1px solid var(--line);
+}
+
+.stat:hover {
+    background: #f8fafd;
+    text-decoration: none;
+}
+
+.stat-label {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.stat.approved .stat-label::before, .stat.rejected .stat-label::before {
+    content: "";
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 8px;
+    border-radius: 50%;
+}
+
+.stat.approved .stat-label::before { background: var(--approved); }
+.stat.rejected .stat-label::before { background: var(--rejected); }
+
+.stat-value {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.stat-note {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* a horizontal bar split into parts; each part grows by its number (flex-grow) */
+.split-bar {
     display: flex;
-    align-items: flex-end;
-    gap: 16px;
+    gap: 3px;
+    height: 14px;
+    margin: 6px 0 16px;
+    /* the whole bar grows from the left when the page opens */
+    transform-origin: left;
+    animation: grow-x 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both;
+}
+
+/* used by the charts: from no width (scaleX(0)) to the real width */
+@keyframes grow-x {
+    from {
+        transform: scaleX(0);
+    }
+}
+
+.split-bar span {
+    display: block;
+    min-width: 6px;
+    border-radius: 999px;
+}
+
+.split-bar .SUBMITTED { background: var(--submitted); }
+.split-bar .APPROVED { background: var(--approved); }
+.split-bar .REJECTED { background: var(--rejected); }
+.split-bar .principal { background: var(--text); }
+.split-bar .interest { background: var(--accent); }
+
+.legend {
+    display: flex;
     flex-wrap: wrap;
+    gap: 6px 24px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+}
+
+.legend strong {
+    margin-left: 6px;
+    color: var(--text);
+}
+
+/* one bar per product */
+.bars {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bars li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+}
+
+.bar-label {
+    font-weight: 600;
+}
+
+.bar-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+    grid-column: span 2;
+    height: 10px;
+    background: var(--soft);
+    border-radius: 999px;
+}
+
+/* width = this product's amount / all approved amounts (both come from the template as CSS variables) */
+.bar-fill {
+    display: block;
+    height: 100%;
+    min-width: 6px;
+    width: calc(100% * var(--value) / var(--max));
+    background: var(--accent);
+    border-radius: 999px;
+    /* each bar grows from the left to its width when the page opens */
+    transform-origin: left;
+    animation: grow-x 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 300ms both;
+}
+
+/* ---------- 9. application page ---------- */
+
+/* the "file": the facts of the application with the status stamped on it */
+.file {
+    position: relative;
+    margin-bottom: 28px;
+    background: linear-gradient(180deg, var(--accent-soft) 0, var(--surface) 140px);
+}
+
+.file-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 22px;
+    margin-bottom: 22px;
+    padding-right: 200px; /* room for the stamp */
+}
+
+.file-head h1 {
+    font-size: 28px;
+}
+
+.file-amount {
+    margin: 8px 0 0;
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.file-amount small {
+    margin-left: 10px;
+    color: var(--muted);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+/* the status as a rubber stamp in the corner of the file */
+.file .status {
+    position: absolute;
+    top: 30px;
+    right: 32px;
+    padding: 6px 18px;
+    border: 3px solid currentColor;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transform: rotate(-6deg);
+    opacity: 0.9;
+    animation: stamp 420ms cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+}
+
+/* the stamp lands on the file when the page opens */
+@keyframes stamp {
+    from {
+        transform: rotate(-14deg) scale(1.6);
+        opacity: 0;
+    }
+    to {
+        transform: rotate(-6deg) scale(1);
+        opacity: 0.9;
+    }
+}
+
+.facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px 24px;
+    margin: 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.facts dt {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.facts dd {
+    margin: 2px 0 0;
+    font-weight: 700;
+}
+
+.file-tools {
+    display: flex;
+    gap: 12px;
+    margin-top: 22px;
+}
+
+/* main column (documents, schedule) and the side column (decision, history) */
+.detail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 24px;
+    align-items: start;
+}
+
+.decision {
+    display: grid;
+    gap: 14px;
+}
+
+.decision-option {
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.decision-option h3 {
+    margin-bottom: 4px;
+}
+
+.decision-option .help {
+    margin-bottom: 12px;
+}
+
+.decision-option .field {
+    margin-bottom: 12px;
+}
+
+.decision-option button {
+    width: 100%;
+}
+
+.cancel-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 18px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* required documents: a checklist that decides whether approval is allowed */
+.checklist-box {
+    margin: 14px 0 16px;
+}
+
+.checklist {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+}
+
+.checklist li {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-small);
+    font-weight: 600;
+}
+
+.checklist li.done {
+    background: var(--approved-bg);
+}
+
+.checklist li.missing {
+    background: var(--accent-soft);
+}
+
+.check-state {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.checklist li.done .check-state { color: var(--approved); }
+.checklist li.missing .check-state { color: var(--accent-text); }
+
+/* a small dot in the colour of the state, before "Uploaded" or "Missing" */
+.check-state::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    vertical-align: 1px;
+}
+
+/* the upload form under the documents table */
+.upload {
+    margin-top: 22px;
+    padding: 20px;
+    border-radius: var(--radius);
+    background: var(--soft);
+}
+
+/* totals of the repayment schedule and the calculator */
+.totals {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 20px;
+}
+
+.totals > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.totals.wide {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-radius: var(--radius);
+    background: var(--soft);
+}
+
+.totals.wide > div {
+    display: block;
+    padding: 14px 18px;
+}
+
+.totals.wide > div + div {
+    border-left: 1px solid var(--line);
+}
+
+.totals dt {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.totals dd {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.totals .total {
+    padding-top: 12px;
+    border-top: 1px solid var(--line-strong);
+}
+
+.totals .total dt {
+    color: var(--text);
+    font-weight: 700;
+}
+
+/* history: a vertical line with one point per status change */
+.timeline {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.timeline li {
+    position: relative;
+    display: grid;
+    margin-left: 5px;
+    padding: 0 0 20px 22px;
+    border-left: 2px solid var(--line);
+}
+
+.timeline li:last-child {
+    padding-bottom: 0;
+    border-left-color: transparent;
+}
+
+.timeline li::before {
+    content: "";
+    position: absolute;
+    left: -7px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+    background: var(--muted);
+}
+
+.timeline li.SUBMITTED::before { background: var(--submitted); }
+.timeline li.APPROVED::before { background: var(--approved); }
+.timeline li.REJECTED::before { background: var(--rejected); }
+
+.timeline-status {
+    font-weight: 700;
+}
+
+.timeline-time {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.timeline-comment {
+    margin-top: 6px;
+    padding: 8px 12px;
+    border-radius: var(--radius-small);
+    background: var(--rejected-bg);
+    font-size: 14px;
+}
+
+/* ---------- 10. loan products as cards ---------- */
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+}
+
+/* text on the left, a photo on the right */
+.product-card {
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+}
+
+/* the same lift as the shortcut cards on the home page.
+   :focus-within = a link or button inside the card has keyboard focus. */
+.product-card:hover, .product-card:focus-within {
+    border-color: var(--line-strong);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+}
+
+.product-card:hover .product-photo, .product-card:focus-within .product-photo {
+    transform: scale(1.05);
+}
+
+.product-body {
+    padding: 26px 28px;
+}
+
+.product-body h2 {
+    margin-bottom: 4px;
+}
+
+.product-rate {
+    color: var(--muted);
+}
+
+.product-rate span {
+    color: var(--accent-text);
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.product-facts {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 18px;
+}
+
+.product-facts div {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 12px;
+}
+
+.product-facts dt {
+    color: var(--muted);
+}
+
+.product-facts dd {
+    margin: 0;
+    font-weight: 600;
+}
+
+.product-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 22px;
+}
+
+.product-actions form {
+    display: inline;
+}
+
+/* the photo fills its column from top to bottom */
+.product-photo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 220px;
+    object-fit: cover;
+    transition: transform 600ms ease;
+}
+
+/* ---------- 11. customers, calculator, search ---------- */
+
+.searchbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.searchbar input {
+    flex: 1;
+}
+
+/* the customer list: one row per person inside one card */
+.people {
+    background: var(--surface);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.people li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: start;
+    padding: 20px 22px;
+}
+
+.people li + li {
+    border-top: 1px solid var(--line);
+}
+
+.avatar {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 18px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.person-name {
+    margin: 0 0 6px;
+    font-weight: 700;
+    font-size: 17px;
+}
+
+.person-id {
+    margin-left: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.person-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 22px;
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
+.person-facts div {
+    display: flex;
+    gap: 6px;
+}
+
+.person-facts dt {
+    color: var(--muted);
+}
+
+.person-facts dd {
+    margin: 0;
+}
+
+.person-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.person-links span {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.person-actions {
+    display: grid;
+    justify-items: end;
+    gap: 10px;
+}
+
+.person-actions .row-actions > :first-child {
+    margin-left: 0;
+}
+
+/* the search form under the applications table */
+.search {
+    margin-top: 40px;
+}
+
+.search form {
+    display: grid;
+    grid-template-columns: 1fr 220px auto;
+    gap: 14px;
+    align-items: end;
 }
 
 .search .field {
     margin: 0;
-    flex: 1;
-    min-width: 180px;
 }
 
-/* the result card of the calculator */
+/* calculator: one panel, the inputs on the left and a grey result panel on the right */
+.calc {
+    background: var(--surface);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 32px;
+    padding: 32px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+}
+
+.calc-form {
+    padding: 8px 8px 0;
+}
+
+.calc-result {
+    padding: 28px 30px;
+    border-radius: var(--radius);
+    background: var(--soft);
+}
+
+.calc-result h2 {
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 600;
+}
+
 .result-value {
     margin: 0;
-    font-family: "Manrope", sans-serif;
-    font-size: 44px;
+    font-size: 56px;
     font-weight: 800;
     line-height: 1.1;
-    letter-spacing: -0.02em;
 }
 
-.result .split-bar {
-    margin-top: 20px;
+.calc-result .lead {
+    margin-bottom: 20px;
 }
 
-.result.placeholder .result-value {
-    color: #b8c2d3;
+.calc-result.placeholder .result-value {
+    color: var(--line-strong);
 }
 
-/* ---------- phones and narrow windows ---------- */
+/* ---------- 12. motion on every page ---------- */
 
-@media (max-width: 900px) {
-    .topbar-inner {
-        height: auto;
-        padding: 10px 16px;
+/* When a page opens, its parts come in one after another: each child of <main> rises 12px
+   and fades in, a little later than the one before (animation-delay). The keyframes rise-in
+   are in section 8.
+   "backwards" applies the start of the animation during the delay, and nothing after it ends.
+   ("both" would keep it applied forever, which turns every row into its own layer and the
+   Actions menu of one row would then open underneath the next row.) */
+main > * {
+    animation: rise-in 500ms ease-out backwards;
+}
+
+main > :nth-child(2) { animation-delay: 60ms; }
+main > :nth-child(3) { animation-delay: 120ms; }
+main > :nth-child(4) { animation-delay: 180ms; }
+main > :nth-child(5) { animation-delay: 240ms; }
+main > :nth-child(n+6) { animation-delay: 300ms; }
+
+/* cards in a grid come in one by one too */
+.promo-grid > :nth-child(2),
+.product-grid > :nth-child(2n) {
+    animation: rise-in 500ms ease-out 150ms backwards;
+}
+
+/* table rows fade in from the top down, like a list being dealt out */
+.table tbody tr {
+    animation: fade-in 400ms ease-out backwards;
+}
+
+.table tbody tr:nth-child(2) { animation-delay: 40ms; }
+.table tbody tr:nth-child(3) { animation-delay: 80ms; }
+.table tbody tr:nth-child(4) { animation-delay: 120ms; }
+.table tbody tr:nth-child(5) { animation-delay: 160ms; }
+.table tbody tr:nth-child(n+6) { animation-delay: 200ms; }
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+}
+
+/* the points of the history appear one by one, with a small "pop" */
+.timeline li::before {
+    animation: pop-in 400ms cubic-bezier(0.3, 1.6, 0.5, 1) backwards;
+}
+
+.timeline li:nth-child(2)::before { animation-delay: 150ms; }
+.timeline li:nth-child(n+3)::before { animation-delay: 300ms; }
+
+@keyframes pop-in {
+    from {
+        transform: scale(0);
+    }
+}
+
+/* the logo tilts a little when the mouse is on it */
+.brand img {
+    transition: transform 300ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.brand:hover img {
+    transform: rotate(-8deg) scale(1.06);
+}
+
+/* a light shine moves across an orange button on hover.
+   ::after is a white see-through stripe, first outside the button on the left;
+   on hover it slides to the right. overflow: hidden keeps it inside the button. */
+.button {
+    position: relative;
+    overflow: hidden;
+}
+
+.button::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -60%;
+    width: 40%;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0));
+    transform: skewX(-20deg);
+    transition: left 600ms ease;
+}
+
+.button:hover::after {
+    left: 120%;
+}
+
+/* Parts of the home page further down wait until they are scrolled into view.
+   motion.js puts the class "js" on <html> (so without JavaScript nothing is hidden) and adds
+   "is-visible" to a .reveal element when it enters the screen; the transition then fades it in. */
+.js .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 700ms ease-out, transform 700ms ease-out;
+}
+
+.js .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+}
+
+/* the charts inside a part that is not visible yet wait (paused) and grow when it appears */
+.js .reveal:not(.is-visible) .split-bar,
+.js .reveal:not(.is-visible) .bar-fill {
+    animation-play-state: paused;
+}
+
+/* ---------- 13. small screens ---------- */
+
+/* not enough room for everything in the white header row: the areas move under the logo */
+@media (max-width: 1060px) {
+    .header-top {
         flex-wrap: wrap;
-        gap: 8px 16px;
+        gap: 10px 24px;
+        padding-top: 12px;
+        padding-bottom: 12px;
     }
 
-    /* the links move to their own line and can be scrolled sideways */
-    .topbar nav {
+    .areas {
         order: 3;
-        flex-basis: 100%;
-        overflow-x: auto;
+        width: 100%;
+    }
+
+    .sticky {
+        top: 170px;
+    }
+}
+
+@media (max-width: 1100px) {
+    /* minmax(0, 1fr) instead of 1fr: lets the column shrink below the width of a wide table */
+    .detail, .split, .product-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .sticky {
+        position: static;
+    }
+}
+
+@media (max-width: 860px) {
+    /* on a phone the header scrolls away, so it does not cover half of the screen */
+    .site-header {
+        position: static;
+    }
+
+    .header-top, .header-tabs {
+        padding-left: 16px;
+        padding-right: 16px;
     }
 
     .docs-link {
-        margin-left: auto;
+        display: none;
     }
 
     main {
-        padding: 20px 16px 48px;
+        padding: 28px 16px 56px;
     }
 
-    .columns, .split, .detail {
-        grid-template-columns: 1fr;
+    .footer-inner {
+        padding-left: 16px;
+        padding-right: 16px;
     }
 
-    .stats {
-        grid-template-columns: 1fr 1fr;
+    .footer-bottom {
+        width: calc(100% - 32px);
     }
 
-    .sticky, .detail-side {
+    h1 {
+        font-size: 28px;
+    }
+
+    .columns, .pair, .stats, .totals.wide, .search form, .promo-grid, .calc {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .calc {
+        padding: 18px;
+    }
+
+    .stat + .stat {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+
+    .totals.wide > div + div {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+    }
+
+    .title-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .banner {
+        padding: 28px 24px;
+    }
+
+    /* on a narrow banner the shade covers the whole photo */
+    .banner::before {
+        background: rgba(13, 27, 54, 0.8);
+    }
+
+    .banner .banner-number {
+        font-size: 56px;
+    }
+
+    .product-card {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .product-photo {
+        order: -1; /* the photo above the text */
+        height: 180px;
+        min-height: 0;
+    }
+
+    /* the stamp moves under the title instead of the corner */
+    .file-head {
+        padding-right: 0;
+    }
+
+    .file .status {
         position: static;
+        margin: 0 0 18px 4px;
+        font-size: 17px;
+    }
+
+    .file-amount {
+        font-size: 40px;
     }
 
     /* wide tables scroll sideways inside their card */
-    .table-card {
+    .table-card, .detail-main .card {
         overflow-x: auto;
     }
 
-    /* inside a scrolling card a floating menu would be cut off, so it opens in place */
     .menu-panel {
         position: static;
+        width: 240px;
         margin-top: 6px;
+        box-shadow: none;
     }
 
     .people li {
-        flex-wrap: wrap;
+        grid-template-columns: auto minmax(0, 1fr);
     }
 
     .person-actions {
-        width: 100%;
-        grid-auto-flow: column;
-        justify-content: space-between;
-        align-items: center;
+        grid-column: 1 / -1;
+        justify-items: start;
+    }
+}
+
+/* ---------- 14. reduced motion ---------- */
+
+/* people who asked their system for less motion (an accessibility setting) get none of it:
+   every animation and transition is switched off, everything is shown at once in its final place.
+   !important is needed so this beats the rules above, whatever their selector. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
     }
 
-    .pair, .totals.wide {
-        grid-template-columns: 1fr;
+    /* parts that wait to be scrolled into view (section 12) are simply shown */
+    .js .reveal {
+        opacity: 1;
+        transform: none;
     }
 }

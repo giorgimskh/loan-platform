@@ -82,7 +82,7 @@ class WebControllerTest {
     @MockitoBean
     private DocumentTypeService documentTypeService;
 
-    // ---------- overview ----------
+    // ---------- home page ----------
 
     @Test
     void home_showsWaitingApplicationsAndTheReport() throws Exception {

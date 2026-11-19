@@ -9,15 +9,21 @@
 
     <div th:replace="~{fragments :: flash}"></div>
 
-    <!-- The header card: the facts of the application with its status next to the title -->
-    <section class="card file">
+    <!-- The "file": the application like a paper file on the desk.
+         The amount is the most important fact, so it is the biggest; the status is stamped in the corner. -->
+    <section class="card file" aria-labelledby="file-title">
         <div class="file-head">
-            <h1 th:text="'Application No. ' + ${loanApplication.id}">Application No. 1</h1>
-            <span th:replace="~{fragments :: status(${loanApplication.status})}"></span>
-            <!-- only a SUBMITTED application can be edited (rule 4) -->
-            <a class="button quiet edit-link" th:if="${loanApplication.status.name() == 'SUBMITTED'}"
-               th:href="@{/ui/applications/{id}/edit(id=${loanApplication.id})}">Edit application</a>
+            <div>
+                <h1 id="file-title" th:text="'Application No. ' + ${loanApplication.id}">Application No. 1</h1>
+                <p class="file-amount">
+                    <span th:text="${#numbers.formatDecimal(loanApplication.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</span>
+                    <small th:text="'over ' + ${loanApplication.termMonths} + ' months'">over 12 months</small>
+                </p>
+            </div>
         </div>
+
+        <!-- the status fragment; the CSS turns it into a stamp inside the file -->
+        <span th:replace="~{fragments :: status(${loanApplication.status})}"></span>
 
         <dl class="facts">
             <div>
@@ -29,14 +35,6 @@
                 <dd th:text="${loanApplication.loanProductName}">Consumer Loan</dd>
             </div>
             <div>
-                <dt>Amount</dt>
-                <dd class="digits" th:text="${#numbers.formatDecimal(loanApplication.amount, 1, 'COMMA', 2, 'POINT')}">5,000.00</dd>
-            </div>
-            <div>
-                <dt>Term</dt>
-                <dd th:text="${loanApplication.termMonths} + ' months'">12 months</dd>
-            </div>
-            <div>
                 <dt>Submitted on</dt>
                 <dd th:text="${#temporals.format(loanApplication.createdAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</dd>
             </div>
@@ -45,72 +43,17 @@
                 <dd th:text="${loanApplication.decisionComment}">Income too low</dd>
             </div>
         </dl>
+
+        <!-- only a SUBMITTED application can be edited (rule 4) -->
+        <div class="file-tools" th:if="${loanApplication.status.name() == 'SUBMITTED'}">
+            <a class="button quiet" th:href="@{/ui/applications/{id}/edit(id=${loanApplication.id})}">Edit application</a>
+        </div>
     </section>
 
-    <!-- Two columns: the work (decision, documents, schedule) on the left, the history on the right -->
+    <!-- Two columns: the paperwork (documents, schedule) on the left;
+         the decision and the history on the right, next to the documents that decide whether approval is allowed -->
     <div class="detail">
         <div class="detail-main">
-
-            <!-- Decision (rule 4): an application can get any decision except the one it already has.
-                 So "Approve" is hidden when it is APPROVED, and "Reject" is hidden when it is REJECTED. -->
-            <section class="card" aria-labelledby="decision-title">
-                <h2 id="decision-title"
-                    th:text="${loanApplication.status.name() == 'SUBMITTED'} ? 'Decide' : 'Change the decision'">Decide</h2>
-                <p class="lead" th:if="${loanApplication.status.name() == 'APPROVED'}">
-                    This application is approved. If that was wrong, it can still be rejected.
-                </p>
-                <p class="lead" th:if="${loanApplication.status.name() == 'REJECTED'}">
-                    This application is rejected. If that was wrong, it can still be approved.
-                </p>
-
-                <!-- Rule 7: every document the product requires must be uploaded before approval.
-                     requiredDocuments = what the product asks for, missingDocuments = what is not uploaded yet. -->
-                <div class="checklist-box" th:if="${!#lists.isEmpty(requiredDocuments)}">
-                    <h3>Required documents</h3>
-                    <ul class="checklist">
-                        <li th:each="d : ${requiredDocuments}"
-                            th:classappend="${missingDocuments.contains(d)} ? 'missing' : 'done'">
-                            <span th:text="${d.name}">ID Card</span>
-                            <span class="check-state" th:text="${missingDocuments.contains(d)} ? 'Missing' : 'Uploaded'">Uploaded</span>
-                        </li>
-                    </ul>
-                    <p class="help" th:if="${!#lists.isEmpty(missingDocuments) and loanApplication.status.name() != 'APPROVED'}">
-                        Approval is refused until the missing documents are uploaded below.
-                    </p>
-                </div>
-
-                <div class="decision">
-                    <form class="decision-option" th:if="${loanApplication.status.name() != 'APPROVED'}"
-                          th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
-                        <h3>Approve</h3>
-                        <p class="help">The customer gets the loan. A reason for rejection, if there is one, is removed.</p>
-                        <button type="submit">Approve application</button>
-                    </form>
-
-                    <form class="decision-option" th:if="${loanApplication.status.name() != 'REJECTED'}"
-                          th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post" novalidate>
-                        <h3>Reject</h3>
-                        <div class="field">
-                            <label for="decisionComment">Reason, shown on the application</label>
-                            <input id="decisionComment" type="text" name="decisionComment" autocomplete="off" maxlength="255">
-                        </div>
-                        <button type="submit" class="danger">Reject application</button>
-                    </form>
-                </div>
-
-                <!-- Cancelling is only possible before a decision.
-                     confirm() asks before deleting; "Cancel" in the dialog stops the form from being sent. -->
-                <form class="cancel-line" th:if="${loanApplication.status.name() == 'SUBMITTED'}"
-                      th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post"
-                      onsubmit="return confirm('Cancel this application? It and its documents are deleted.')">
-                    <span>Submitted by mistake?</span>
-                    <button type="submit" class="link danger">Cancel this application</button>
-                </form>
-                <p class="cancel-line" th:if="${loanApplication.status.name() != 'SUBMITTED'}">
-                    A decided application can no longer be edited or cancelled.
-                </p>
-            </section>
-
             <section class="card" aria-labelledby="documents-title">
                 <h2 id="documents-title">Documents
                     <span class="count" th:text="${#lists.size(loanApplication.documents)}">2</span>
@@ -219,21 +162,84 @@
             </section>
         </div>
 
-        <!-- History: one line per status change, oldest first (the StatusChange entity) -->
-        <aside class="card detail-side" aria-labelledby="history-title">
-            <h2 id="history-title">History</h2>
-            <ol class="timeline" th:if="${!#lists.isEmpty(history)}">
-                <li th:each="h : ${history}" th:class="${h.status}">
-                    <span class="timeline-status" th:text="${#strings.capitalize(#strings.toLowerCase(h.status))}">Submitted</span>
-                    <span class="timeline-time" th:text="${#temporals.format(h.changedAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</span>
-                    <span class="timeline-comment" th:if="${h.decisionComment != null}" th:text="${h.decisionComment}">Income too low</span>
-                </li>
-            </ol>
-            <p class="empty-note" th:if="${#lists.isEmpty(history)}">
-                No history was recorded for this application: it was created before the history existed.
-            </p>
+        <aside class="detail-side" aria-label="Decision and history">
+            <!-- Decision (rule 4): an application can get any decision except the one it already has.
+                 So "Approve" is hidden when it is APPROVED, and "Reject" is hidden when it is REJECTED. -->
+            <section class="card" aria-labelledby="decision-title">
+                <h2 id="decision-title"
+                    th:text="${loanApplication.status.name() == 'SUBMITTED'} ? 'Decide' : 'Change the decision'">Decide</h2>
+                <p class="lead" th:if="${loanApplication.status.name() == 'APPROVED'}">
+                    This application is approved. If that was wrong, it can still be rejected.
+                </p>
+                <p class="lead" th:if="${loanApplication.status.name() == 'REJECTED'}">
+                    This application is rejected. If that was wrong, it can still be approved.
+                </p>
+
+                <!-- Rule 7: every document the product requires must be uploaded before approval.
+                     requiredDocuments = what the product asks for, missingDocuments = what is not uploaded yet. -->
+                <div class="checklist-box" th:if="${!#lists.isEmpty(requiredDocuments)}">
+                    <h3>Required documents</h3>
+                    <ul class="checklist">
+                        <li th:each="d : ${requiredDocuments}"
+                            th:classappend="${missingDocuments.contains(d)} ? 'missing' : 'done'">
+                            <span th:text="${d.name}">ID Card</span>
+                            <span class="check-state" th:text="${missingDocuments.contains(d)} ? 'Missing' : 'Uploaded'">Uploaded</span>
+                        </li>
+                    </ul>
+                    <p class="help" th:if="${!#lists.isEmpty(missingDocuments) and loanApplication.status.name() != 'APPROVED'}">
+                        Approval is refused until the missing documents are uploaded under Documents.
+                    </p>
+                </div>
+
+                <div class="decision">
+                    <form class="decision-option" th:if="${loanApplication.status.name() != 'APPROVED'}"
+                          th:action="@{/ui/applications/{id}/approve(id=${loanApplication.id})}" method="post">
+                        <h3>Approve</h3>
+                        <p class="help">The customer gets the loan. A reason for rejection, if there is one, is removed.</p>
+                        <button type="submit">Approve application</button>
+                    </form>
+
+                    <form class="decision-option" th:if="${loanApplication.status.name() != 'REJECTED'}"
+                          th:action="@{/ui/applications/{id}/reject(id=${loanApplication.id})}" method="post" novalidate>
+                        <h3>Reject</h3>
+                        <div class="field">
+                            <label for="decisionComment">Reason, shown on the application</label>
+                            <input id="decisionComment" type="text" name="decisionComment" autocomplete="off" maxlength="255">
+                        </div>
+                        <button type="submit" class="danger">Reject application</button>
+                    </form>
+                </div>
+
+                <!-- Cancelling is only possible before a decision.
+                     confirm() asks before deleting; "Cancel" in the dialog stops the form from being sent. -->
+                <form class="cancel-line" th:if="${loanApplication.status.name() == 'SUBMITTED'}"
+                      th:action="@{/ui/applications/{id}/delete(id=${loanApplication.id})}" method="post"
+                      onsubmit="return confirm('Cancel this application? It and its documents are deleted.')">
+                    <span>Submitted by mistake?</span>
+                    <button type="submit" class="link danger">Cancel this application</button>
+                </form>
+                <p class="cancel-line" th:if="${loanApplication.status.name() != 'SUBMITTED'}">
+                    A decided application can no longer be edited or cancelled.
+                </p>
+            </section>
+
+            <!-- History: one line per status change, oldest first (the StatusChange entity) -->
+            <section class="card" aria-labelledby="history-title">
+                <h2 id="history-title">History</h2>
+                <ol class="timeline" th:if="${!#lists.isEmpty(history)}">
+                    <li th:each="h : ${history}" th:class="${h.status}">
+                        <span class="timeline-status" th:text="${#strings.capitalize(#strings.toLowerCase(h.status))}">Submitted</span>
+                        <span class="timeline-time" th:text="${#temporals.format(h.changedAt, 'd MMM yyyy, HH:mm')}">1 Jan 2026, 10:00</span>
+                        <span class="timeline-comment" th:if="${h.decisionComment != null}" th:text="${h.decisionComment}">Income too low</span>
+                    </li>
+                </ol>
+                <p class="empty-note" th:if="${#lists.isEmpty(history)}">
+                    No history was recorded for this application: it was created before the history existed.
+                </p>
+            </section>
         </aside>
     </div>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

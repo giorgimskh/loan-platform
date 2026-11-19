@@ -9,60 +9,65 @@
 
     <div class="title-row">
         <div>
-            <h1>Loan products <span class="count" th:text="${#lists.size(products)}">2</span></h1>
-            <p class="lead">What the bank offers: the interest, and how much and how long a customer can borrow.</p>
+            <!-- The orange bar already shows the name of this page, so the heading is only for screen readers
+             (and for the browser's outline of the page); "visually-hidden" hides it on screen. -->
+            <h1 class="visually-hidden">Loan products</h1>
+            <p class="lead"><strong class="lead-count"
+                th:text="${#lists.size(products)} + (${#lists.size(products) == 1} ? ' product.' : ' products.')">2 products.</strong>
+                What the bank offers: the interest, and how much and how long a customer can borrow.</p>
         </div>
         <a class="button" th:href="@{/ui/products/new}">New product</a>
     </div>
 
-    <!-- Two pages that belong together: products, and the document types a product can require -->
-    <nav class="tabs" aria-label="Products section">
-        <a class="current" th:href="@{/ui/products}">Products</a>
-        <a th:href="@{/ui/document-types}">Document types</a>
-    </nav>
-
-    <div class="table-card" th:if="${!#lists.isEmpty(products)}">
-        <table class="table">
-            <thead>
-            <tr>
-                <th>Product</th>
-                <th class="number">Interest</th>
-                <th class="number">Amount</th>
-                <th class="number">Term</th>
-                <th>Required documents</th>
-                <th><span class="visually-hidden">Actions</span></th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="p : ${products}">
-                <td>
-                    <strong th:text="${p.name}">Consumer Loan</strong>
-                    <span class="sub" th:text="'Product ' + ${p.id}">Product 1</span>
-                </td>
-                <td class="number" th:text="${p.interestRate} + '%'">14.50%</td>
-                <td class="number"
-                    th:text="${#numbers.formatDecimal(p.minAmount, 1, 'COMMA', 0, 'POINT')} + ' to ' + ${#numbers.formatDecimal(p.maxAmount, 1, 'COMMA', 0, 'POINT')}">
-                    500 to 20,000
-                </td>
-                <td class="number" th:text="${p.minTermMonths} + ' to ' + ${p.maxTermMonths} + ' mo'">3 to 48 mo</td>
-                <td>
-                    <span class="tag" th:each="d : ${p.requiredDocuments}" th:text="${d.name}">ID Card</span>
-                    <span class="sub" th:if="${#lists.isEmpty(p.requiredDocuments)}">None</span>
-                </td>
-                <td class="row-actions">
+    <!-- One card per product: the facts on the left, a photo on the right -->
+    <div class="product-grid" th:if="${!#lists.isEmpty(products)}">
+        <article class="product-card" th:each="p : ${products}">
+            <div class="product-body">
+                <h2 th:text="${p.name}">Consumer Loan</h2>
+                <p class="product-rate">
+                    <span th:text="${p.interestRate} + '%'">14.50%</span> per year
+                </p>
+                <dl class="product-facts">
+                    <div>
+                        <dt>Amount</dt>
+                        <dd th:text="${#numbers.formatDecimal(p.minAmount, 1, 'COMMA', 0, 'POINT')} + ' to ' + ${#numbers.formatDecimal(p.maxAmount, 1, 'COMMA', 0, 'POINT')}">500 to 20,000</dd>
+                    </div>
+                    <div>
+                        <dt>Term</dt>
+                        <dd th:text="${p.minTermMonths} + ' to ' + ${p.maxTermMonths} + ' months'">3 to 48 months</dd>
+                    </div>
+                    <div>
+                        <dt>Documents</dt>
+                        <dd>
+                            <span class="tag" th:each="d : ${p.requiredDocuments}" th:text="${d.name}">ID Card</span>
+                            <span th:if="${#lists.isEmpty(p.requiredDocuments)}">None required</span>
+                        </dd>
+                    </div>
+                </dl>
+                <div class="product-actions">
                     <!-- opens the calculator with this product already chosen -->
-                    <a th:href="@{/ui/calculator(loanProductId=${p.id})}" th:attr="aria-label='Calculate a payment for ' + ${p.name}">Calculate</a>
-                    <a th:href="@{/ui/products/{id}/edit(id=${p.id})}" th:attr="aria-label='Edit ' + ${p.name}">Edit</a>
+                    <a class="more" th:href="@{/ui/calculator(loanProductId=${p.id})}"
+                       th:attr="aria-label='Calculate a payment for ' + ${p.name}">Calculate</a>
+                    <a class="more" th:href="@{/ui/products/{id}/edit(id=${p.id})}"
+                       th:attr="aria-label='Edit ' + ${p.name}">Edit</a>
                     <!-- an HTML form cannot send DELETE, so the website uses POST .../delete.
                          confirm() asks before deleting; "Cancel" stops the form from being sent. -->
                     <form th:action="@{/ui/products/{id}/delete(id=${p.id})}" method="post"
                           onsubmit="return confirm('Delete this product? This cannot be undone.')">
-                        <button type="submit" class="link danger" th:attr="aria-label='Delete ' + ${p.name}">Delete</button>
+                        <button type="submit" class="more danger" th:attr="aria-label='Delete ' + ${p.name}">Delete</button>
                     </form>
-                </td>
-            </tr>
-            </tbody>
-        </table>
+                </div>
+            </div>
+            <!-- a photo that matches the product: a house for a mortgage, a car key for a car loan,
+                 coins for every other loan. th:with makes a local variable "photo" with the file name;
+                 #strings.containsIgnoreCase looks for a word in the product name. -->
+            <img class="product-photo"
+                 th:with="photo=${#strings.containsIgnoreCase(p.name, 'mortgage')} ? 'product-house.jpg'
+                         : (${#strings.containsIgnoreCase(p.name, 'car loan') or #strings.containsIgnoreCase(p.name, 'auto')} ? 'product-car.jpg'
+                         : 'product-money.jpg')"
+                 th:src="@{/img/photos/{file}(file=${photo})}" src="/img/photos/product-money.jpg"
+                 width="800" height="600" alt="">
+        </article>
     </div>
 
     <div class="empty-state" th:if="${#lists.isEmpty(products)}">
@@ -70,5 +75,6 @@
         <a class="button" th:href="@{/ui/products/new}">New product</a>
     </div>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

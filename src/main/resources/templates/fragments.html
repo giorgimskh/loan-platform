@@ -9,32 +9,106 @@
     <!-- Fonts from Google Fonts; without internet the page falls back to system fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Inter: a plain, very readable typeface used by many banks and finance apps, for all text -->
     <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap">
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <!-- @{...} builds a URL; the file is src/main/resources/static/css/style.css -->
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <!-- the logo as the small icon in the browser tab -->
+    <link rel="icon" type="image/svg+xml" th:href="@{/img/logo.svg}">
+    <!-- numbers that count up and parts that appear when scrolled into view (static/js/motion.js).
+         Loaded in <head> on purpose: it marks the page before it is drawn, so nothing flashes. -->
+    <script th:src="@{/js/motion.js}"></script>
 </head>
 
 <body>
 
-<!-- The bar at the top of every page. "active" is the name of the current page, so its link can be highlighted. -->
-<header class="topbar" th:fragment="topbar(active)">
-    <div class="topbar-inner">
+<!--
+  The header at the top of every page. It has two rows, like many bank websites:
+    1. a white bar: the logo on the far left, the two areas of the website, and buttons on the right
+         Daily work = what a loan officer does every day
+         Setup      = what an admin sets up once (loan products, document types)
+    2. an orange bar: the pages of the area that is open
+  "active" is the name of the current page. th:with makes a local variable "setup":
+  true when the open page belongs to the Setup area.
+  aria-current="page" tells screen readers which link is the open page.
+-->
+<header class="site-header" th:fragment="topbar(active)"
+        th:with="setup=${active == 'products' or active == 'document-types'}">
+    <div class="header-top">
         <a class="brand" th:href="@{/ui}">
-            <span class="brand-mark" aria-hidden="true">L</span>
-            <span>Loan Platform</span>
+            <img th:src="@{/img/logo.svg}" src="/img/logo.svg" width="40" height="40" alt="">
+            <span class="brand-text">
+                <span class="brand-name">Loan Platform</span>
+                <span class="brand-note">Back office</span>
+            </span>
         </a>
-        <nav aria-label="Main">
-            <a th:href="@{/ui}" th:classappend="${active == 'home'} ? 'current'">Overview</a>
-            <a th:href="@{/ui/applications}" th:classappend="${active == 'applications'} ? 'current'">Applications</a>
-            <a th:href="@{/ui/customers}" th:classappend="${active == 'customers'} ? 'current'">Customers</a>
-            <a th:href="@{/ui/products}" th:classappend="${active == 'products'} ? 'current'">Products</a>
-            <a th:href="@{/ui/calculator}" th:classappend="${active == 'calculator'} ? 'current'">Calculator</a>
+
+        <nav class="areas" aria-label="Areas">
+            <a th:href="@{/ui}" th:classappend="${!setup} ? 'current'">Daily work</a>
+            <a th:href="@{/ui/products}" th:classappend="${setup} ? 'current'">Setup</a>
         </nav>
-        <!-- Swagger UI: every REST endpoint on one page, opened in a new tab -->
-        <a class="docs-link" th:href="@{/swagger-ui.html}" target="_blank" rel="noopener">API docs</a>
+
+        <div class="header-actions">
+            <!-- Swagger UI: every REST endpoint on one page, opened in a new tab -->
+            <a class="docs-link" th:href="@{/swagger-ui.html}" target="_blank" rel="noopener">API docs</a>
+            <a class="button small" th:href="@{/ui/applications/new}">New application</a>
+        </div>
     </div>
+
+    <!-- the orange bar: only the pages of the open area are shown -->
+    <nav class="header-tabs" aria-label="Pages">
+        <th:block th:if="${!setup}">
+            <a th:href="@{/ui}" th:classappend="${active == 'home'} ? 'current'"
+               th:attr="aria-current=${active == 'home'} ? 'page'">Home</a>
+            <a th:href="@{/ui/applications}" th:classappend="${active == 'applications'} ? 'current'"
+               th:attr="aria-current=${active == 'applications'} ? 'page'">Applications</a>
+            <a th:href="@{/ui/customers}" th:classappend="${active == 'customers'} ? 'current'"
+               th:attr="aria-current=${active == 'customers'} ? 'page'">Customers</a>
+            <a th:href="@{/ui/calculator}" th:classappend="${active == 'calculator'} ? 'current'"
+               th:attr="aria-current=${active == 'calculator'} ? 'page'">Payment calculator</a>
+        </th:block>
+        <th:block th:if="${setup}">
+            <a th:href="@{/ui/products}" th:classappend="${active == 'products'} ? 'current'"
+               th:attr="aria-current=${active == 'products'} ? 'page'">Loan products</a>
+            <a th:href="@{/ui/document-types}" th:classappend="${active == 'document-types'} ? 'current'"
+               th:attr="aria-current=${active == 'document-types'} ? 'page'">Document types</a>
+        </th:block>
+    </nav>
 </header>
+
+<!-- The footer at the bottom of every page -->
+<footer class="site-footer" th:fragment="footer">
+    <div class="footer-inner">
+        <div class="footer-brand">
+            <img th:src="@{/img/logo.svg}" src="/img/logo.svg" width="32" height="32" alt="">
+            <div>
+                <p class="footer-name">Loan Platform</p>
+                <p class="footer-note">Online loan applications for a bank. University Spring Boot project.</p>
+            </div>
+        </div>
+        <nav class="footer-links" aria-label="Footer">
+            <div>
+                <p class="footer-title">Daily work</p>
+                <a th:href="@{/ui/applications}">Applications</a>
+                <a th:href="@{/ui/customers}">Customers</a>
+                <a th:href="@{/ui/calculator}">Payment calculator</a>
+            </div>
+            <div>
+                <p class="footer-title">Setup</p>
+                <a th:href="@{/ui/products}">Loan products</a>
+                <a th:href="@{/ui/document-types}">Document types</a>
+            </div>
+            <div>
+                <p class="footer-title">For developers</p>
+                <a th:href="@{/swagger-ui.html}" target="_blank" rel="noopener">API docs (Swagger UI)</a>
+                <a th:href="@{/v3/api-docs}" target="_blank" rel="noopener">OpenAPI JSON</a>
+            </div>
+        </nav>
+    </div>
+    <!-- #dates.year(#dates.createNow()) is the current year -->
+    <p class="footer-bottom" th:text="'© ' + ${#dates.year(#dates.createNow())} + ' Loan Platform'">© 2026 Loan Platform</p>
+</footer>
 
 <!-- Messages set by WebController before a redirect (flash attributes). role="status" makes screen readers announce them. -->
 <div th:fragment="flash">

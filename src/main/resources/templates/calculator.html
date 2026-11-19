@@ -8,13 +8,16 @@
 <main>
     <div class="title-row">
         <div>
-            <h1>Payment calculator</h1>
+            <!-- The orange bar already shows the name of this page, so the heading is only for screen readers
+             (and for the browser's outline of the page); "visually-hidden" hides it on screen. -->
+            <h1 class="visually-hidden">Payment calculator</h1>
             <p class="lead">See what a loan costs per month before applying. Nothing is saved.</p>
         </div>
     </div>
 
-    <div class="columns">
-        <section class="card" aria-labelledby="loan-title">
+    <!-- One panel: the inputs on the left, the result on a grey panel on the right -->
+    <div class="calc">
+        <section class="calc-form" aria-labelledby="loan-title">
             <h2 id="loan-title">The loan</h2>
 
             <!-- The service refused the request, e.g. the amount is outside the product's range (rule 1) -->
@@ -43,7 +46,7 @@
         </section>
 
         <!-- "calculation" is a PaymentCalculationResponse; it only exists after a successful calculation -->
-        <section class="card result" aria-labelledby="result-title" th:if="${calculation != null}">
+        <section class="calc-result" aria-labelledby="result-title" th:if="${calculation != null}">
             <h2 id="result-title">Monthly payment</h2>
             <p class="result-value" th:text="${#numbers.formatDecimal(calculation.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</p>
             <p class="lead" th:text="'for ' + ${calculation.termMonths} + ' months at ' + ${calculation.interestRate} + '% per year'">for 12 months at 14.50% per year</p>
@@ -69,17 +72,18 @@
             </dl>
 
             <!-- the three values are passed on, so the application form opens already filled -->
-            <a class="button" th:href="@{/ui/applications/new(loanProductId=${values.get('loanProductId')}, amount=${values.get('amount')}, termMonths=${values.get('termMonths')})}">
+            <a class="button wide" th:href="@{/ui/applications/new(loanProductId=${values.get('loanProductId')}, amount=${values.get('amount')}, termMonths=${values.get('termMonths')})}">
                 Apply with these numbers
             </a>
         </section>
 
-        <section class="card result placeholder" th:if="${calculation == null}">
+        <section class="calc-result placeholder" th:if="${calculation == null}">
             <h2>Monthly payment</h2>
             <p class="result-value">0.00</p>
             <p class="lead">Choose a product, an amount and a term. The monthly payment, the interest and the total appear here.</p>
         </section>
     </div>
 </main>
+<footer th:replace="~{fragments :: footer}"></footer>
 </body>
 </html>

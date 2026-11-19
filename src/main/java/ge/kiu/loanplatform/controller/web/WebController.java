@@ -88,7 +88,7 @@ public class WebController {
 
     // ---------- home ----------
 
-    // both /ui and /ui/ open the overview
+    // both /ui and /ui/ open the home page
     @GetMapping({"", "/"})
     public String home(Model model) {
         // Model = the data the template can read, e.g. ${totals}
