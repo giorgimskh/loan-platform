@@ -27,10 +27,12 @@ import ge.kiu.loanplatform.service.document.FileStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -57,6 +59,8 @@ class LoanApplicationServiceTest {
     private LoanProductRepository loanProductRepository;
     @Mock
     private FileStorageService fileStorageService;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     // @Spy = the real object, not a fake: the calculator is pure maths, so the tests use it as it is
     @Spy
     private LoanCalculatorService loanCalculatorService = new LoanCalculatorService();
@@ -72,6 +76,7 @@ class LoanApplicationServiceTest {
         customer = new Customer();
         customer.setId(1L);
         customer.setFullName("Ana Beridze");
+        customer.setEmail("ana@example.com");
 
         product = new LoanProduct();
         product.setId(1L);
@@ -172,6 +177,7 @@ class LoanApplicationServiceTest {
 
         assertThatThrownBy(() -> loanApplicationService.approve(1L))
                 .isInstanceOf(ConflictException.class);
+        verify(eventPublisher, never()).publishEvent(any()); // a refused decision is not announced
     }
 
     @Test
@@ -212,6 +218,47 @@ class LoanApplicationServiceTest {
 
         assertThatThrownBy(() -> loanApplicationService.reject(1L, new RejectRequest("Again")))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    // ---------- observer pattern: status change events ----------
+
+    @Test
+    void create_publishesStatusChangedEvent_withNoPreviousStatus() {
+        when(customerRepository.findById(1L)).thenReturn(Optional.of(customer));
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(loanApplicationRepository.save(any(LoanApplication.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        loanApplicationService.create(new LoanApplicationRequest(1L, 1L, new BigDecimal("5000"), 12));
+
+        ApplicationStatusChangedEvent event = capturePublishedEvent();
+        assertThat(event.previousStatus()).isNull();
+        assertThat(event.newStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
+        assertThat(event.customerEmail()).isEqualTo("ana@example.com");
+    }
+
+    @Test
+    void approve_publishesStatusChangedEvent() {
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.SUBMITTED)));
+
+        loanApplicationService.approve(1L);
+
+        ApplicationStatusChangedEvent event = capturePublishedEvent();
+        assertThat(event.applicationId()).isEqualTo(1L);
+        assertThat(event.previousStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
+        assertThat(event.newStatus()).isEqualTo(ApplicationStatus.APPROVED);
+    }
+
+    @Test
+    void reject_publishesStatusChangedEventWithTheReason() {
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.APPROVED)));
+
+        loanApplicationService.reject(1L, new RejectRequest("Income too low"));
+
+        ApplicationStatusChangedEvent event = capturePublishedEvent();
+        assertThat(event.previousStatus()).isEqualTo(ApplicationStatus.APPROVED);
+        assertThat(event.newStatus()).isEqualTo(ApplicationStatus.REJECTED);
+        assertThat(event.decisionComment()).isEqualTo("Income too low");
     }
 
     @Test
@@ -500,6 +547,13 @@ class LoanApplicationServiceTest {
         document.setOriginalFileName("file.pdf");
         document.setDocumentType(documentType);
         return document;
+    }
+
+    // ArgumentCaptor catches the object the service passed to the mock, so the test can look inside it
+    private ApplicationStatusChangedEvent capturePublishedEvent() {
+        ArgumentCaptor<ApplicationStatusChangedEvent> captor = ArgumentCaptor.forClass(ApplicationStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        return captor.getValue();
     }
 
     private LoanApplication application(ApplicationStatus status) {

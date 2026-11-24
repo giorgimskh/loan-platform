@@ -100,24 +100,21 @@ Every error is returned as JSON in the same format by `GlobalExceptionHandler` (
 Validation errors return 400 with `fieldErrors` (one message per invalid field), a missing record 404,
 and a status that does not allow the action or a duplicate value 409.
 
-## File uploads
+## File validation
 
-Documents are uploaded as `multipart/form-data` (`file` + `documentTypeId`).
+Every upload is checked by `@ValidFile` (the website upload runs the same check); a failure is a 400
+response with the reason.
 
-- `@ValidFile` on the `file` parameter checks that the file is present and not empty, at most 5 MB, and
-  declared as PDF, JPG or PNG (the extension and the Content-Type must match). A failure is a clean 400
-  with the reason under `fieldErrors.file`. `FileStorageService` runs the same check again, so the website
-  upload is protected too.
-- The original file name is never used as the storage path: the stored name is a random UUID plus an
-  extension chosen from the checked type (e.g. `3f2a...e9.pdf`). The original name is only kept in the
-  database (without any folder part) as the download name.
-- Global limits in `application.properties`: `max-file-size=5MB` and `max-request-size=6MB` stop a bigger
-  upload while it is read (400), and `server.tomcat.max-swallow-size` caps how much of a refused request
-  is still read.
-- Pixel bombs (a tiny image whose header claims e.g. 100 000 x 100 000 pixels): for a JPG or PNG only the
-  header is read with `javax.imageio`, never the pixels. An image over 25 million pixels, or bytes that are
-  not really the declared format, are refused with 400.
-- Archives (ZIP etc.) are not accepted and nothing is ever unpacked, so zip bombs cannot reach the server.
+| Check | Rule |
+|---|---|
+| Present | the file is not missing or empty |
+| Size | at most 5 MB (also a global limit in `application.properties`) |
+| Type | PDF, JPG or PNG; the extension and the Content-Type must match |
+| Real image | a JPG/PNG must really be that format (only its header is read) |
+| Pixel bomb | an image may have at most 25 million pixels |
+
+Files are stored under a random generated name, never the original file name. Archives are not accepted,
+so nothing is ever unpacked (no zip bombs).
 
 ## Swagger UI
 
@@ -164,6 +161,15 @@ Service tests use Mockito, controller tests use MockMvc; both run without the da
 `LoanPlatformApplicationTests` starts the whole application, so **the database must be running** when
 you run all tests.
 
+## Observer pattern: status change notifications
+
+`LoanApplicationService` is the subject. When an application is created, approved or rejected, it publishes an
+`ApplicationStatusChangedEvent` through Spring's `ApplicationEventPublisher`. It does not know who receives
+the event. `CustomerNotificationListener` is an observer: its `@TransactionalEventListener` method runs after the
+transaction commits and writes the message the customer would receive to the log. For example:
+`To Ana Beridze <ana@example.com>: your loan application #5 was REJECTED. Reason: Income too low`.
+To add a new reaction (for example an audit log), add another listener class. The service does not change.
+
 ## Project structure
 
 ```
@@ -174,7 +180,8 @@ src/main/java/ge/kiu/loanplatform
 ├── service      business rules, transactions (@Service, @Transactional)
 │   ├── customer     CustomerService
 │   ├── product      LoanProductService
-│   ├── application  LoanApplicationService, LoanCalculatorService
+│   ├── application  LoanApplicationService, LoanCalculatorService,
+│   │                ApplicationStatusChangedEvent, CustomerNotificationListener (observer pattern)
 │   └── document     DocumentService, DocumentTypeService, FileStorageService
 ├── repository   Spring Data JPA repositories (method-name queries and @Query)
 │   ├── customer     CustomerRepository

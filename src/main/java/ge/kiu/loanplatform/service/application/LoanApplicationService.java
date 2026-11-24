@@ -26,6 +26,7 @@ import ge.kiu.loanplatform.repository.customer.CustomerRepository;
 import ge.kiu.loanplatform.repository.product.LoanProductRepository;
 import ge.kiu.loanplatform.service.document.FileStorageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,9 @@ public class LoanApplicationService {
     private final LoanProductRepository loanProductRepository;
     private final FileStorageService fileStorageService;
     private final LoanCalculatorService loanCalculatorService;
+    // Observer pattern: the service is the subject. It only announces status changes;
+    // Spring hands each event to every @EventListener / @TransactionalEventListener that accepts it.
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public LoanApplicationResponse create(LoanApplicationRequest request) {
@@ -67,6 +71,8 @@ public class LoanApplicationService {
         recordStatusChange(application); // the first line of its history
 
         LoanApplication saved = loanApplicationRepository.save(application);
+        // published after save(), because only then does the application have an id
+        publishStatusChanged(saved, null);
         return LoanApplicationResponse.from(saved);
     }
 
@@ -215,9 +221,11 @@ public class LoanApplicationService {
                     + " cannot be approved, required documents are missing: " + String.join(", ", names));
         }
 
+        ApplicationStatus previousStatus = application.getStatus();
         application.setStatus(ApplicationStatus.APPROVED);
         application.setDecisionComment(null); // an approved application has no rejection reason
         recordStatusChange(application);
+        publishStatusChanged(application, previousStatus);
         // no save() needed: changes to a managed entity are written on commit
         return LoanApplicationResponse.from(application);
     }
@@ -229,9 +237,11 @@ public class LoanApplicationService {
         requireNotAlready(application, ApplicationStatus.REJECTED, "rejected");
 
         // Rule 5: non-blank reason is guaranteed by @NotBlank on RejectRequest
+        ApplicationStatus previousStatus = application.getStatus();
         application.setStatus(ApplicationStatus.REJECTED);
         application.setDecisionComment(request.decisionComment());
         recordStatusChange(application);
+        publishStatusChanged(application, previousStatus);
         return LoanApplicationResponse.from(application);
     }
 
@@ -277,6 +287,19 @@ public class LoanApplicationService {
         change.setStatus(application.getStatus());
         change.setDecisionComment(application.getDecisionComment());
         application.getStatusHistory().add(change);
+    }
+
+    // Observer pattern: tells every listener that the application now has a new status.
+    // The service does not know who listens; new listeners can be added without changing this class.
+    private void publishStatusChanged(LoanApplication application, ApplicationStatus previousStatus) {
+        Customer customer = application.getCustomer();
+        eventPublisher.publishEvent(new ApplicationStatusChangedEvent(
+                application.getId(),
+                customer.getFullName(),
+                customer.getEmail(),
+                previousStatus,
+                application.getStatus(),
+                application.getDecisionComment()));
     }
 
     // Rule 7: compare what the product requires with what was uploaded
