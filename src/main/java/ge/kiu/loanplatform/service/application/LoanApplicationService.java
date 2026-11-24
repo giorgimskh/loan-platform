@@ -210,39 +210,15 @@ public class LoanApplicationService {
     @Transactional
     public LoanApplicationResponse approve(Long id) {
         LoanApplication application = findApplication(id);
-        // Rule 4: a decision can be changed (REJECTED -> APPROVED), but not repeated
-        requireNotAlready(application, ApplicationStatus.APPROVED, "approved");
-
-        // Rule 7: every document the product requires must be uploaded before approval
-        List<DocumentType> missing = findMissingDocumentTypes(application);
-        if (!missing.isEmpty()) {
-            List<String> names = missing.stream().map(DocumentType::getName).toList();
-            throw new ConflictException("Application with id " + id
-                    + " cannot be approved, required documents are missing: " + String.join(", ", names));
-        }
-
-        ApplicationStatus previousStatus = application.getStatus();
-        application.setStatus(ApplicationStatus.APPROVED);
-        application.setDecisionComment(null); // an approved application has no rejection reason
-        recordStatusChange(application);
-        publishStatusChanged(application, previousStatus);
-        // no save() needed: changes to a managed entity are written on commit
-        return LoanApplicationResponse.from(application);
+        // Command pattern: the command carries what it needs, here the documents still missing (rule 7)
+        return executeDecision(application, new ApproveCommand(findMissingDocumentTypes(application)));
     }
 
     @Transactional
     public LoanApplicationResponse reject(Long id, RejectRequest request) {
         LoanApplication application = findApplication(id);
-        // Rule 4: a decision can be changed (APPROVED -> REJECTED), but not repeated
-        requireNotAlready(application, ApplicationStatus.REJECTED, "rejected");
-
-        // Rule 5: non-blank reason is guaranteed by @NotBlank on RejectRequest
-        ApplicationStatus previousStatus = application.getStatus();
-        application.setStatus(ApplicationStatus.REJECTED);
-        application.setDecisionComment(request.decisionComment());
-        recordStatusChange(application);
-        publishStatusChanged(application, previousStatus);
-        return LoanApplicationResponse.from(application);
+        // Command pattern: the rejection reason travels inside the command
+        return executeDecision(application, new RejectCommand(request.decisionComment()));
     }
 
     @Transactional
@@ -277,6 +253,21 @@ public class LoanApplicationService {
             throw new BusinessRuleException("Term must be between " + product.getMinTermMonths()
                     + " and " + product.getMaxTermMonths() + " months for product " + product.getName());
         }
+    }
+
+    // Command pattern: the steps every decision shares, written once.
+    // Only command.execute() is different for approve and reject.
+    private LoanApplicationResponse executeDecision(LoanApplication application, DecisionCommand command) {
+        // Rule 4: a decision can be changed (APPROVED <-> REJECTED), but not repeated.
+        // The action word is the status in lower case: APPROVED -> "approved", REJECTED -> "rejected".
+        requireNotAlready(application, command.targetStatus(), command.targetStatus().name().toLowerCase());
+
+        ApplicationStatus previousStatus = application.getStatus();
+        command.execute(application);
+        recordStatusChange(application);
+        publishStatusChanged(application, previousStatus);
+        // no save() needed: changes to a managed entity are written on commit
+        return LoanApplicationResponse.from(application);
     }
 
     // Adds one line to the history: the status (and rejection reason) the application has right now.

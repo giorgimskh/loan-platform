@@ -170,6 +170,14 @@ transaction commits and writes the message the customer would receive to the log
 `To Ana Beridze <ana@example.com>: your loan application #5 was REJECTED. Reason: Income too low`.
 To add a new reaction (for example an audit log), add another listener class. The service does not change.
 
+## Command pattern: officer decisions
+
+Approve and reject are command objects that implement `DecisionCommand`: `ApproveCommand` carries the list of
+documents that are still missing (rule 7), and `RejectCommand` carries the rejection reason. Both decisions share
+the same steps, which `LoanApplicationService.executeDecision` writes once: check rule 4 (no repeated decision),
+run `command.execute(...)`, add a history line, and publish the status change event. Only `execute` is different
+for each decision. Commands are plain objects, not Spring beans, because a new one is made for every request.
+
 ## Project structure
 
 ```
@@ -181,7 +189,8 @@ src/main/java/ge/kiu/loanplatform
 │   ├── customer     CustomerService
 │   ├── product      LoanProductService
 │   ├── application  LoanApplicationService, LoanCalculatorService,
-│   │                ApplicationStatusChangedEvent, CustomerNotificationListener (observer pattern)
+│   │                ApplicationStatusChangedEvent, CustomerNotificationListener (observer pattern),
+│   │                DecisionCommand, ApproveCommand, RejectCommand (command pattern)
 │   └── document     DocumentService, DocumentTypeService, FileStorageService
 ├── repository   Spring Data JPA repositories (method-name queries and @Query)
 │   ├── customer     CustomerRepository
