@@ -3144,7 +3144,7 @@
       ]
     },
     {
-      "name": "6. Decisions (approve, reject, cancel)",
+      "name": "6. Decisions (approve, reject, undo, cancel)",
       "item": [
         {
           "name": "Approve application - required document missing",
@@ -3627,6 +3627,165 @@
                 "history"
               ]
             }
+          }
+        },
+        {
+          "name": "Undo decision",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Back to SUBMITTED, the reason is gone\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.status).to.eql(\"SUBMITTED\");",
+                  "    pm.expect(body.decisionComment).to.eql(null);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/undo-decision",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{rejectApplicationId}}",
+                "undo-decision"
+              ]
+            },
+            "description": "Memento pattern: the application goes back to the state it had before its last decision."
+          }
+        },
+        {
+          "name": "History after undo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Nothing is deleted: submitted, rejected, submitted\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body).to.have.lengthOf(3);",
+                  "    pm.expect(body[1].status).to.eql(\"REJECTED\");",
+                  "    pm.expect(body[2].status).to.eql(\"SUBMITTED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{rejectApplicationId}}",
+                "history"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Undo decision - no decision to undo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 409\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/undo-decision",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{rejectApplicationId}}",
+                "undo-decision"
+              ]
+            },
+            "description": "A SUBMITTED application has no decision to undo."
+          }
+        },
+        {
+          "name": "Reject application again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Rejected again\", function () {",
+                  "    pm.expect(pm.response.json().status).to.eql(\"REJECTED\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{rejectApplicationId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{rejectApplicationId}}",
+                "reject"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decisionComment\": \"Income too low\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Puts the application back to REJECTED, so the later requests and reports see the same data as before."
           }
         },
         {

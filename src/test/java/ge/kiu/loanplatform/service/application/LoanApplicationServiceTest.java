@@ -12,6 +12,7 @@ import ge.kiu.loanplatform.dto.report.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.report.StatisticsResponse;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
+import ge.kiu.loanplatform.entity.application.StatusChange;
 import ge.kiu.loanplatform.entity.customer.Customer;
 import ge.kiu.loanplatform.entity.document.Document;
 import ge.kiu.loanplatform.entity.document.DocumentType;
@@ -259,6 +260,79 @@ class LoanApplicationServiceTest {
         assertThat(event.previousStatus()).isEqualTo(ApplicationStatus.APPROVED);
         assertThat(event.newStatus()).isEqualTo(ApplicationStatus.REJECTED);
         assertThat(event.decisionComment()).isEqualTo("Income too low");
+    }
+
+    // ---------- memento pattern: undo the last decision ----------
+
+    @Test
+    void undoLastDecision_goesBackToSubmitted_andKeepsTheHistory() {
+        LoanApplication application = withHistory(application(ApplicationStatus.APPROVED),
+                ApplicationStatus.SUBMITTED, ApplicationStatus.APPROVED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        LoanApplicationResponse response = loanApplicationService.undoLastDecision(1L);
+
+        assertThat(response.status()).isEqualTo(ApplicationStatus.SUBMITTED);
+        // nothing is deleted: SUBMITTED -> APPROVED -> SUBMITTED
+        assertThat(application.getStatusHistory()).extracting(StatusChange::getStatus).containsExactly(
+                ApplicationStatus.SUBMITTED, ApplicationStatus.APPROVED, ApplicationStatus.SUBMITTED);
+        ApplicationStatusChangedEvent event = capturePublishedEvent();
+        assertThat(event.previousStatus()).isEqualTo(ApplicationStatus.APPROVED);
+        assertThat(event.newStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
+    }
+
+    @Test
+    void undoLastDecision_bringsBackTheEarlierRejectionReason() {
+        LoanApplication application = withHistory(application(ApplicationStatus.APPROVED),
+                ApplicationStatus.SUBMITTED, ApplicationStatus.REJECTED, ApplicationStatus.APPROVED);
+        application.getStatusHistory().get(1).setDecisionComment("Income too low");
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        LoanApplicationResponse response = loanApplicationService.undoLastDecision(1L);
+
+        assertThat(response.status()).isEqualTo(ApplicationStatus.REJECTED);
+        assertThat(response.decisionComment()).isEqualTo("Income too low");
+    }
+
+    @Test
+    void undoLastDecision_throwsConflict_whenApplicationIsSubmitted() {
+        LoanApplication application = withHistory(application(ApplicationStatus.SUBMITTED), ApplicationStatus.SUBMITTED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> loanApplicationService.undoLastDecision(1L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("no decision to undo");
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void undoLastDecision_throwsConflict_whenGoingBackToApprovedWithMissingDocuments() { // rule 7
+        product.setRequiredDocuments(Set.of(documentType(1L, "ID Card")));
+        LoanApplication application = withHistory(application(ApplicationStatus.REJECTED),
+                ApplicationStatus.SUBMITTED, ApplicationStatus.APPROVED, ApplicationStatus.REJECTED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> loanApplicationService.undoLastDecision(1L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("ID Card");
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
+    }
+
+    @Test
+    void undoLastDecision_throwsConflict_whenThereIsNoEarlierState() {
+        LoanApplication application = withHistory(application(ApplicationStatus.APPROVED), ApplicationStatus.APPROVED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> loanApplicationService.undoLastDecision(1L))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void undoLastDecision_throwsNotFound_whenApplicationDoesNotExist() {
+        when(loanApplicationRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> loanApplicationService.undoLastDecision(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
@@ -554,6 +628,17 @@ class LoanApplicationServiceTest {
         ArgumentCaptor<ApplicationStatusChangedEvent> captor = ArgumentCaptor.forClass(ApplicationStatusChangedEvent.class);
         verify(eventPublisher).publishEvent(captor.capture());
         return captor.getValue();
+    }
+
+    // adds one history line per status, oldest first (like the real history)
+    private LoanApplication withHistory(LoanApplication application, ApplicationStatus... statuses) {
+        for (ApplicationStatus status : statuses) {
+            StatusChange change = new StatusChange();
+            change.setLoanApplication(application);
+            change.setStatus(status);
+            application.getStatusHistory().add(change);
+        }
+        return application;
     }
 
     private LoanApplication application(ApplicationStatus status) {

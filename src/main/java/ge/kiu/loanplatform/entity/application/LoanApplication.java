@@ -74,4 +74,15 @@ public class LoanApplication {
     void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
+    // Memento pattern (this class is the originator): only the application itself decides
+    // what goes into a snapshot of its state and how to go back to one.
+    public ApplicationStateMemento createMemento() {
+        return new ApplicationStateMemento(status, decisionComment);
+    }
+
+    public void restore(ApplicationStateMemento memento) {
+        status = memento.status();
+        decisionComment = memento.decisionComment();
+    }
 }

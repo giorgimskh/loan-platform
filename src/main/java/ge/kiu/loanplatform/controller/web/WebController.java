@@ -461,6 +461,15 @@ public class WebController {
         return "redirect:" + previousUiPageOr(request, "/ui/applications/" + id);
     }
 
+    // Memento pattern: back to the state the application had before its last decision
+    @PostMapping("/applications/{id}/undo-decision")
+    public String undoDecision(@PathVariable Long id, HttpServletRequest request, RedirectAttributes redirect) {
+        LoanApplicationResponse restored = loanApplicationService.undoLastDecision(id);
+        redirect.addFlashAttribute("message", "The last decision was undone: application " + id
+                + " is " + restored.status().name().toLowerCase() + " again");
+        return "redirect:" + previousUiPageOr(request, "/ui/applications/" + id);
+    }
+
     @PostMapping("/applications/{id}/delete")
     public String cancel(@PathVariable Long id, HttpServletRequest request, RedirectAttributes redirect) {
         loanApplicationService.delete(id);

@@ -128,6 +128,12 @@ public class LoanApplicationController {
         return loanApplicationService.reject(id, request);
     }
 
+    // Memento pattern: go back to the state before the last decision (409 when there is no decision)
+    @PutMapping("/{id}/undo-decision")
+    public LoanApplicationResponse undoDecision(@PathVariable @Positive(message = "Id must be a positive number") Long id) {
+        return loanApplicationService.undoLastDecision(id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable @Positive(message = "Id must be a positive number") Long id) {

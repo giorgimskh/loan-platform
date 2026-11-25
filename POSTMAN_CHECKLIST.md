@@ -96,7 +96,7 @@ Postman: Body → form-data. Key `file` with type **File**, key `documentTypeId`
 | 50 | `GET /api/documents/1/download` | – | 200, the PDF itself; header `Content-Disposition: attachment; filename="..."` (Postman: Send and Download) |
 | 51 | `GET /api/applications/1/missing-documents` | – | 200, `[]` (the ID Card is uploaded) |
 
-## Decisions (approve / reject / cancel)
+## Decisions (approve / reject / undo / cancel)
 
 | # | Request | Body | Expected |
 |---|---------|------|----------|
@@ -113,12 +113,16 @@ Postman: Body → form-data. Key `file` with type **File**, key `documentTypeId`
 | 62 | `PUT /api/applications/2/reject` | `{"decisionComment":"Approved by mistake"}` | 200, the decision is changed to `REJECTED` (rule 4) |
 | 63 | `PUT /api/applications/2/approve` | – | 200, changed back to `APPROVED`, `decisionComment` is null |
 | 64 | `GET /api/applications/2/history` | – | 200, four lines: SUBMITTED, APPROVED, REJECTED (with the reason), APPROVED |
-| 65 | `GET /api/applications/3/schedule` | – | 409, only an APPROVED application has a schedule |
-| 66 | `DELETE /api/applications/3` | – | 409, REJECTED cannot be cancelled (rule 4) |
-| 67 | `DELETE /api/documents/2` | – | 204 (application 1 is still SUBMITTED) |
-| 68 | `DELETE /api/applications/1` | – | 204, its files are removed from `uploads/` |
-| 69 | `GET /api/applications/1` | – | 404 |
-| 70 | `GET /api/applications?status=APPROVED` | – | 200, only application 2 |
+| 65 | `PUT /api/applications/3/undo-decision` | – | 200, back to `SUBMITTED`, `decisionComment` is null (memento pattern) |
+| 66 | `GET /api/applications/3/history` | – | 200, three lines: SUBMITTED, REJECTED, SUBMITTED (nothing is deleted) |
+| 67 | `PUT /api/applications/3/undo-decision` | – | 409, a SUBMITTED application has no decision to undo |
+| 68 | `PUT /api/applications/3/reject` | `{"decisionComment":"Income too low"}` | 200, `REJECTED` again, so the later rows see the same data |
+| 69 | `GET /api/applications/3/schedule` | – | 409, only an APPROVED application has a schedule |
+| 70 | `DELETE /api/applications/3` | – | 409, REJECTED cannot be cancelled (rule 4) |
+| 71 | `DELETE /api/documents/2` | – | 204 (application 1 is still SUBMITTED) |
+| 72 | `DELETE /api/applications/1` | – | 204, its files are removed from `uploads/` |
+| 73 | `GET /api/applications/1` | – | 404 |
+| 74 | `GET /api/applications?status=APPROVED` | – | 200, only application 2 |
 
 ## Queries and reports
 
@@ -126,26 +130,26 @@ These endpoints use the repository query methods (method-name queries and `@Quer
 
 | # | Request | Body | Expected |
 |---|---------|------|----------|
-| 71 | `GET /api/customers/1/applications?status=APPROVED` | – | 200, only application 2 |
-| 72 | `GET /api/customers/1/applications` | – | 400, missing parameter `status` |
-| 73 | `GET /api/customers/1/applications?status=WRONG` | – | 400, invalid value for `status` |
-| 74 | `GET /api/customers/99/applications?status=APPROVED` | – | 404, customer not found |
-| 75 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=1000` | – | 200, only application 2 (7000 on Consumer Loan) |
-| 76 | `GET /api/applications/search?productName=Consumer Loan` | – | 400, missing parameter `amountAbove` |
-| 77 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=-1` | – | 400, `fieldErrors` for amountAbove |
-| 78 | `GET /api/applications/reports/approved-totals` | – | 200, one row: `Consumer Loan`, `totalApprovedAmount` 7000.00 |
-| 79 | `GET /api/applications/reports/statistics` | – | 200, `totalApplications` 2, `approved` 1, `rejected` 1, `approvalRate` 50.0, `averageAmount` 4500.00, `totalApprovedAmount` 7000.00 |
-| 80 | `PUT /api/applications/2` | `{"loanProductId":1,"amount":5000,"termMonths":18}` | 409, APPROVED cannot be modified (rule 4) |
-| 81 | `DELETE /api/customers/1` | – | 409, the customer has applications |
+| 75 | `GET /api/customers/1/applications?status=APPROVED` | – | 200, only application 2 |
+| 76 | `GET /api/customers/1/applications` | – | 400, missing parameter `status` |
+| 77 | `GET /api/customers/1/applications?status=WRONG` | – | 400, invalid value for `status` |
+| 78 | `GET /api/customers/99/applications?status=APPROVED` | – | 404, customer not found |
+| 79 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=1000` | – | 200, only application 2 (7000 on Consumer Loan) |
+| 80 | `GET /api/applications/search?productName=Consumer Loan` | – | 400, missing parameter `amountAbove` |
+| 81 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=-1` | – | 400, `fieldErrors` for amountAbove |
+| 82 | `GET /api/applications/reports/approved-totals` | – | 200, one row: `Consumer Loan`, `totalApprovedAmount` 7000.00 |
+| 83 | `GET /api/applications/reports/statistics` | – | 200, `totalApplications` 2, `approved` 1, `rejected` 1, `approvalRate` 50.0, `averageAmount` 4500.00, `totalApprovedAmount` 7000.00 |
+| 84 | `PUT /api/applications/2` | `{"loanProductId":1,"amount":5000,"termMonths":18}` | 409, APPROVED cannot be modified (rule 4) |
+| 85 | `DELETE /api/customers/1` | – | 409, the customer has applications |
 
 ## Extra validation
 
 | # | Request | Body | Expected |
 |---|---------|------|----------|
-| 82 | `GET /api/customers/-1` | – | 400, `fieldErrors.id` = "Id must be a positive number" |
-| 83 | `POST /api/customers` | `{"fullName":"<script>alert(1)</script>","email":"safe@mail.com","personalNumber":"01234567891"}` | 400, `fieldErrors` for fullName |
-| 84 | `POST /api/customers` | `{"fullName":"Ana Beridze","email":"ana@mail","personalNumber":"01234567891","phone":"call me"}` | 400, `fieldErrors` for email and phone |
-| 85 | `POST /api/applications` | `{"customerId":-1,"loanProductId":0,"amount":5000.999,"termMonths":12}` | 400, `fieldErrors` for customerId, loanProductId, amount |
-| 86 | `PUT /api/applications/3/reject` | `{"decisionComment":"<b>no</b>"}` | 400, `fieldErrors` for decisionComment |
-| 87 | `GET /api/products/3/calculate?amount=0&termMonths=500` | – | 400, `fieldErrors` for amount and termMonths |
-| 88 | `POST /api/document-types` | `{"name":"<script>"}` | 400, `fieldErrors` for name |
+| 86 | `GET /api/customers/-1` | – | 400, `fieldErrors.id` = "Id must be a positive number" |
+| 87 | `POST /api/customers` | `{"fullName":"<script>alert(1)</script>","email":"safe@mail.com","personalNumber":"01234567891"}` | 400, `fieldErrors` for fullName |
+| 88 | `POST /api/customers` | `{"fullName":"Ana Beridze","email":"ana@mail","personalNumber":"01234567891","phone":"call me"}` | 400, `fieldErrors` for email and phone |
+| 89 | `POST /api/applications` | `{"customerId":-1,"loanProductId":0,"amount":5000.999,"termMonths":12}` | 400, `fieldErrors` for customerId, loanProductId, amount |
+| 90 | `PUT /api/applications/3/reject` | `{"decisionComment":"<b>no</b>"}` | 400, `fieldErrors` for decisionComment |
+| 91 | `GET /api/products/3/calculate?amount=0&termMonths=500` | – | 400, `fieldErrors` for amount and termMonths |
+| 92 | `POST /api/document-types` | `{"name":"<script>"}` | 400, `fieldErrors` for name |

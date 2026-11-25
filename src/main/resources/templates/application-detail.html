@@ -218,9 +218,14 @@
                     <span>Submitted by mistake?</span>
                     <button type="submit" class="link danger">Cancel this application</button>
                 </form>
-                <p class="cancel-line" th:if="${loanApplication.status.name() != 'SUBMITTED'}">
-                    A decided application can no longer be edited or cancelled.
-                </p>
+                <!-- Memento pattern: undo goes back to the state before the last decision.
+                     The history keeps every line, the undo is added as a new one. -->
+                <form class="cancel-line" th:if="${loanApplication.status.name() != 'SUBMITTED'}"
+                      th:action="@{/ui/applications/{id}/undo-decision(id=${loanApplication.id})}" method="post"
+                      onsubmit="return confirm('Undo the last decision? The application goes back to the status it had before.')">
+                    <span>A decided application can no longer be edited or cancelled.</span>
+                    <button type="submit" class="link">Undo the last decision</button>
+                </form>
             </section>
 
             <!-- History: one line per status change, oldest first (the StatusChange entity) -->

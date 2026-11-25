@@ -511,7 +511,41 @@ class WebControllerTest {
                 .andExpect(content().string(containsString("This application is approved.")))
                 .andExpect(content().string(containsString("Reject application")))
                 .andExpect(content().string(not(containsString("Approve application"))))
-                .andExpect(content().string(not(containsString("Cancel this application"))));
+                .andExpect(content().string(not(containsString("Cancel this application"))))
+                // memento pattern: a decided application offers undo
+                .andExpect(content().string(containsString("/ui/applications/7/undo-decision")));
+    }
+
+    @Test
+    void applicationDetail_offersNoUndo_whenApplicationIsSubmitted() throws Exception {
+        when(loanApplicationService.getById(7L)).thenReturn(application(ApplicationStatus.SUBMITTED));
+        when(loanProductService.getById(1L)).thenReturn(product());
+        when(documentTypeService.getAll()).thenReturn(documentTypes());
+
+        mockMvc.perform(get("/ui/applications/7"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("/ui/applications/7/undo-decision"))));
+    }
+
+    @Test
+    void undoDecision_returnsToTheApplicationWithTheRestoredStatus() throws Exception { // memento pattern
+        when(loanApplicationService.undoLastDecision(7L)).thenReturn(application(ApplicationStatus.SUBMITTED));
+
+        mockMvc.perform(post("/ui/applications/7/undo-decision")
+                        .header("Referer", "http://localhost:8080/ui/applications/7"))
+                .andExpect(redirectedUrl("/ui/applications/7"))
+                .andExpect(flash().attribute("message", "The last decision was undone: application 7 is submitted again"));
+    }
+
+    @Test
+    void undoDecision_showsTheReason_whenTheServiceRefuses() throws Exception {
+        when(loanApplicationService.undoLastDecision(7L)).thenThrow(
+                new ConflictException("Application with id 7 is SUBMITTED and has no decision to undo"));
+
+        mockMvc.perform(post("/ui/applications/7/undo-decision")
+                        .header("Referer", "http://localhost:8080/ui/applications/7"))
+                .andExpect(redirectedUrl("/ui/applications/7"))
+                .andExpect(flash().attribute("error", "Application with id 7 is SUBMITTED and has no decision to undo"));
     }
 
     @Test

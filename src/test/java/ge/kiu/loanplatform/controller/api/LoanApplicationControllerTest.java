@@ -196,6 +196,32 @@ class LoanApplicationControllerTest {
     }
 
     @Test
+    void undoDecision_returns200WithTheEarlierStatus() throws Exception { // memento pattern
+        when(loanApplicationService.undoLastDecision(1L)).thenReturn(response(ApplicationStatus.SUBMITTED, null));
+
+        mockMvc.perform(put("/api/applications/1/undo-decision"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUBMITTED"));
+    }
+
+    @Test
+    void undoDecision_returns409_whenThereIsNoDecision() throws Exception {
+        when(loanApplicationService.undoLastDecision(1L)).thenThrow(
+                new ConflictException("Application with id 1 is SUBMITTED and has no decision to undo"));
+
+        mockMvc.perform(put("/api/applications/1/undo-decision"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void undoDecision_returns400_whenIdIsNotPositive() throws Exception {
+        mockMvc.perform(put("/api/applications/0/undo-decision"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
     void reject_returns200_whenReasonIsGiven() throws Exception {
         when(loanApplicationService.reject(eq(1L), any(RejectRequest.class)))
                 .thenReturn(response(ApplicationStatus.REJECTED, "Income too low"));

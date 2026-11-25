@@ -12,7 +12,7 @@ What it can do:
 - register, search, change and delete customers
 - manage loan products and the document types a product requires
 - calculate the monthly payment of a loan before applying
-- submit, change, approve, reject and cancel applications, with a history of every status change
+- submit, change, approve, reject and cancel applications, undo the last decision, with a history of every status change
 - upload, download and delete documents; an application cannot be approved while a required document is missing
 - show the month-by-month repayment schedule of an approved application
 - report totals per product and statistics about all applications
@@ -134,7 +134,7 @@ Tierra Mallorca and yahdi yasya.
 
 ## Testing with Postman
 
-A ready collection is in `postman/Loan-Platform.postman_collection.json`: 102 requests with tests,
+A ready collection is in `postman/Loan-Platform.postman_collection.json`: 106 requests with tests,
 covering every endpoint with success and error cases.
 
 1. In Postman choose **Import** and select the collection file.
@@ -178,6 +178,16 @@ the same steps, which `LoanApplicationService.executeDecision` writes once: chec
 run `command.execute(...)`, add a history line, and publish the status change event. Only `execute` is different
 for each decision. Commands are plain objects, not Spring beans, because a new one is made for every request.
 
+## Memento pattern: undo the last decision
+
+`PUT /api/applications/{id}/undo-decision` (and "Undo the last decision" on the application page) returns a
+decided application to the state it had before its last decision. `ApplicationStateMemento` is the snapshot
+(status and rejection reason). `LoanApplication` is the originator: `createMemento()` takes a snapshot and
+`restore(...)` goes back to one. The status history is the caretaker: every `StatusChange` row is a saved
+snapshot (`toMemento()`). History is never deleted: the undo is added as a new line, so
+SUBMITTED → APPROVED, then undo, gives SUBMITTED → APPROVED → SUBMITTED. A SUBMITTED application has nothing
+to undo (409), and going back to APPROVED is refused while a required document is missing (rule 7).
+
 ## Project structure
 
 ```
@@ -200,7 +210,8 @@ src/main/java/ge/kiu/loanplatform
 ├── entity       JPA entities
 │   ├── customer     Customer
 │   ├── product      LoanProduct
-│   ├── application  LoanApplication, StatusChange, ApplicationStatus enum
+│   ├── application  LoanApplication, StatusChange, ApplicationStatus enum,
+│   │                ApplicationStateMemento (memento pattern)
 │   └── document     Document, DocumentType
 ├── dto          request DTOs with validation, response DTOs
 │   ├── customer     CustomerRequest, CustomerResponse

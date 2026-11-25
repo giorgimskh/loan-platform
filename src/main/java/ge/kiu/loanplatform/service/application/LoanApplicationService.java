@@ -11,6 +11,7 @@ import ge.kiu.loanplatform.dto.calculation.ScheduleEntryResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
 import ge.kiu.loanplatform.dto.report.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.report.StatisticsResponse;
+import ge.kiu.loanplatform.entity.application.ApplicationStateMemento;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
 import ge.kiu.loanplatform.entity.application.StatusChange;
@@ -221,6 +222,39 @@ public class LoanApplicationService {
         return executeDecision(application, new RejectCommand(request.decisionComment()));
     }
 
+    // Memento pattern: go back to the state the application had before its last decision.
+    // History is never deleted: the undo is added as a new line, so the full story stays visible.
+    @Transactional
+    public LoanApplicationResponse undoLastDecision(Long id) {
+        LoanApplication application = findApplication(id);
+        if (application.getStatus() == ApplicationStatus.SUBMITTED) {
+            throw new ConflictException("Application with id " + id + " is SUBMITTED and has no decision to undo");
+        }
+        // the history is the caretaker: the last line is the current state,
+        // the line before it is the snapshot saved before the last decision
+        List<StatusChange> history = application.getStatusHistory();
+        if (history.size() < 2) {
+            throw new ConflictException("Application with id " + id + " has no earlier state to go back to");
+        }
+        ApplicationStateMemento before = history.get(history.size() - 2).toMemento();
+
+        // Rule 7 still applies: undo must not approve an application whose documents are missing
+        if (before.status() == ApplicationStatus.APPROVED) {
+            List<DocumentType> missing = findMissingDocumentTypes(application);
+            if (!missing.isEmpty()) {
+                List<String> names = missing.stream().map(DocumentType::getName).toList();
+                throw new ConflictException("Application with id " + id
+                        + " cannot go back to APPROVED, required documents are missing: " + String.join(", ", names));
+            }
+        }
+
+        ApplicationStatus previousStatus = application.getStatus();
+        application.restore(before);
+        recordStatusChange(application);
+        publishStatusChanged(application, previousStatus);
+        return LoanApplicationResponse.from(application);
+    }
+
     @Transactional
     public void delete(Long id) {
         LoanApplication application = findApplication(id);
@@ -272,11 +306,13 @@ public class LoanApplicationService {
 
     // Adds one line to the history: the status (and rejection reason) the application has right now.
     // No repository call is needed: the list has cascade = ALL, so the new line is saved with the application.
+    // Memento pattern: the line is made from the application's own snapshot (createMemento).
     private void recordStatusChange(LoanApplication application) {
+        ApplicationStateMemento snapshot = application.createMemento();
         StatusChange change = new StatusChange();
         change.setLoanApplication(application);
-        change.setStatus(application.getStatus());
-        change.setDecisionComment(application.getDecisionComment());
+        change.setStatus(snapshot.status());
+        change.setDecisionComment(snapshot.decisionComment());
         application.getStatusHistory().add(change);
     }
 

@@ -49,4 +49,9 @@ public class StatusChange {
     void onCreate() {
         changedAt = LocalDateTime.now();
     }
+
+    // Memento pattern: a history row is a saved snapshot; this turns it back into one
+    public ApplicationStateMemento toMemento() {
+        return new ApplicationStateMemento(status, decisionComment);
+    }
 }
