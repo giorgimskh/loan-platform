@@ -123,7 +123,7 @@ controllers; "Try it out" sends a real request. The JSON description is at `/v3/
 
 ## Test website (Thymeleaf)
 
-`http://localhost:8080/ui` is a small website served by `WebController` (`@Controller`). It calls the same
+`http://localhost:8080/ui` is a small website served by the controllers in `controller.web` (`@Controller`, one per area). It calls the same
 services as the REST API, so the same validation and business rules apply. Invalid forms are shown again with
 the typed values and a message under each field; a refused action shows the reason in a red message.
 
@@ -206,7 +206,10 @@ to undo (409), and going back to APPROVED is refused while a required document i
 src/main/java/ge/kiu/loanplatform
 ├── controller
 │   ├── api          REST controllers (@RestController) under /api
-│   └── web          WebController (@Controller) for the /ui website
+│   └── web          the /ui website (@Controller), one per area: HomeWebController, CustomerWebController,
+│                    LoanProductWebController, DocumentTypeWebController, LoanApplicationWebController
+│                    (with the calculator), DocumentWebController; WebControllerAdvice (shared @InitBinder
+│                    and @ExceptionHandler), WebForms and PreviousPage (static helpers)
 ├── service      business rules, transactions (@Service, @Transactional)
 │   ├── customer     CustomerService
 │   ├── product      LoanProductService

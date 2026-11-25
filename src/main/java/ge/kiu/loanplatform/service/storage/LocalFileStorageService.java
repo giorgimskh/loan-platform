@@ -35,7 +35,7 @@ public class LocalFileStorageService implements FileStorageService {
     @Override
     public String store(MultipartFile file) {
         // The same check as @ValidFile on the REST endpoint. It runs here again because the website
-        // upload (WebController) calls this service without the annotation: the service is the last line.
+        // upload (DocumentWebController) calls this service without the annotation: the service is the last line.
         String problem = FileValidator.findProblem(file);
         if (problem != null) {
             throw new BusinessRuleException(problem);
