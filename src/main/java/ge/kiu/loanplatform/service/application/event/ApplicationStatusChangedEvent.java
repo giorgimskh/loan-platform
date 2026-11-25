@@ -1,4 +1,4 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.application.event;
 
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 

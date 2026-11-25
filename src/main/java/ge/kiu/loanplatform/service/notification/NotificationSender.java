@@ -1,4 +1,4 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.notification;
 
 // How a message reaches a customer. It says nothing about the channel (log, e-mail, SMS).
 // Today LogNotificationSender only writes the message to the log because there is no mail server;

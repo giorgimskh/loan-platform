@@ -1,4 +1,4 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.application.command;
 
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;

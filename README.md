@@ -210,12 +210,14 @@ src/main/java/ge/kiu/loanplatform
 ├── service      business rules, transactions (@Service, @Transactional)
 │   ├── customer     CustomerService
 │   ├── product      LoanProductService
-│   ├── application  LoanApplicationService, LoanCalculatorService,
-│   │                ApplicationStatusChangedEvent, CustomerNotificationListener (observer pattern),
-│   │                NotificationSender (interface), LogNotificationSender,
-│   │                DecisionCommand, ApproveCommand, RejectCommand (command pattern),
-│   │                ApprovalRule (interface), RequiredDocumentsRule (chain of responsibility)
-│   └── document     DocumentService, DocumentTypeService, FileStorageService (interface), LocalFileStorageService
+│   ├── application  LoanApplicationService
+│   │   ├── command      DecisionCommand (interface), ApproveCommand, RejectCommand (command pattern)
+│   │   ├── rule         ApprovalRule (interface), RequiredDocumentsRule (chain of responsibility)
+│   │   └── event        ApplicationStatusChangedEvent, CustomerNotificationListener (observer pattern)
+│   ├── document     DocumentService, DocumentTypeService
+│   ├── calculation  LoanCalculatorService (loan maths only)
+│   ├── notification NotificationSender (interface), LogNotificationSender
+│   └── storage      FileStorageService (interface), LocalFileStorageService (files on disk)
 ├── repository   Spring Data JPA repositories (method-name queries and @Query)
 │   ├── customer     CustomerRepository
 │   ├── product      LoanProductRepository

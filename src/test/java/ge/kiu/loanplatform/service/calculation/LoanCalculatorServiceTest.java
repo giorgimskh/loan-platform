@@ -1,4 +1,4 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.calculation;
 
 import ge.kiu.loanplatform.dto.calculation.PaymentCalculationResponse;
 import ge.kiu.loanplatform.dto.calculation.ScheduleEntryResponse;

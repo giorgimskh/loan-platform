@@ -1,4 +1,4 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.notification;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

@@ -1,6 +1,7 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.application.event;
 
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
+import ge.kiu.loanplatform.service.notification.NotificationSender;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;

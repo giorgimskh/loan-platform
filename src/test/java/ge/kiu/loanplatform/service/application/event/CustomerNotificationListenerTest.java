@@ -1,6 +1,7 @@
-package ge.kiu.loanplatform.service.application;
+package ge.kiu.loanplatform.service.application.event;
 
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
+import ge.kiu.loanplatform.service.notification.NotificationSender;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

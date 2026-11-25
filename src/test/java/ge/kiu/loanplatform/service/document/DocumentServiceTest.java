@@ -10,6 +10,7 @@ import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.application.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.document.DocumentRepository;
 import ge.kiu.loanplatform.repository.document.DocumentTypeRepository;
+import ge.kiu.loanplatform.service.storage.FileStorageService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

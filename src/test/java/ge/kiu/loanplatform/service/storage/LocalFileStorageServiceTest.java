@@ -1,4 +1,4 @@
-package ge.kiu.loanplatform.service.document;
+package ge.kiu.loanplatform.service.storage;
 
 import ge.kiu.loanplatform.config.properties.AppProperties;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
