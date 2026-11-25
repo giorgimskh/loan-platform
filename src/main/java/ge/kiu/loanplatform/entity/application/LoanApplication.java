@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.entity.application;
 
 import ge.kiu.loanplatform.entity.customer.Customer;
 import ge.kiu.loanplatform.entity.document.Document;
+import ge.kiu.loanplatform.entity.document.DocumentType;
 import ge.kiu.loanplatform.entity.product.LoanProduct;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -25,7 +26,10 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "loan_applications")
@@ -84,5 +88,25 @@ public class LoanApplication {
     public void restore(ApplicationStateMemento memento) {
         status = memento.status();
         decisionComment = memento.decisionComment();
+    }
+
+    // Rule 7: the document types the product requires that are not uploaded yet (empty list = nothing is missing).
+    // It lives here because it only reads this application's own data (its product and its documents),
+    // and three places need it: RequiredDocumentsRule, the missing-documents endpoint and undo.
+    public List<DocumentType> findMissingDocumentTypes() {
+        Set<Long> uploadedTypeIds = new HashSet<>();
+        for (Document document : documents) {
+            uploadedTypeIds.add(document.getDocumentType().getId());
+        }
+
+        List<DocumentType> missing = new ArrayList<>();
+        for (DocumentType required : loanProduct.getRequiredDocuments()) {
+            if (!uploadedTypeIds.contains(required.getId())) {
+                missing.add(required);
+            }
+        }
+        // requiredDocuments is a Set, which has no order; sorting keeps the answer the same every time
+        missing.sort(Comparator.comparing(DocumentType::getName));
+        return missing;
     }
 }

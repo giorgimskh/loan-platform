@@ -2,7 +2,6 @@ package ge.kiu.loanplatform.service.application;
 
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
-import ge.kiu.loanplatform.entity.document.DocumentType;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ApproveCommandTest {
 
     @Test
-    void execute_setsApprovedAndRemovesTheReason_whenNoDocumentIsMissing() {
+    void execute_setsApprovedAndRemovesTheReason_whenThereAreNoProblems() {
         LoanApplication application = application(ApplicationStatus.REJECTED);
         application.setDecisionComment("Income too low");
 
@@ -26,14 +25,13 @@ class ApproveCommandTest {
     }
 
     @Test
-    void execute_throwsConflictAndChangesNothing_whenADocumentIsMissing() { // rule 7
+    void execute_throwsConflictAndChangesNothing_whenARuleFoundAProblem() {
         LoanApplication application = application(ApplicationStatus.SUBMITTED);
-        DocumentType idCard = new DocumentType();
-        idCard.setName("ID Card");
 
-        assertThatThrownBy(() -> new ApproveCommand(List.of(idCard)).execute(application))
+        assertThatThrownBy(() -> new ApproveCommand(List.of("required documents are missing: ID Card"))
+                .execute(application))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("ID Card");
+                .hasMessage("Application with id 1 cannot be approved, required documents are missing: ID Card");
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.SUBMITTED);
     }
 

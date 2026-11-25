@@ -2,15 +2,14 @@ package ge.kiu.loanplatform.service.application;
 
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
-import ge.kiu.loanplatform.entity.document.DocumentType;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 
 import java.util.List;
 
 // Command pattern: the "approve" decision.
-// missingDocuments = the required document types not uploaded yet (empty list = nothing is missing).
-// The service works the list out and passes it in, so the command needs no repository.
-public record ApproveCommand(List<DocumentType> missingDocuments) implements DecisionCommand {
+// problems = what the approval rules (ApprovalRule) object to (empty list = every rule is satisfied).
+// The service asks the rules and passes the answers in, so the command needs no Spring beans.
+public record ApproveCommand(List<String> problems) implements DecisionCommand {
 
     @Override
     public ApplicationStatus targetStatus() {
@@ -19,11 +18,10 @@ public record ApproveCommand(List<DocumentType> missingDocuments) implements Dec
 
     @Override
     public void execute(LoanApplication application) {
-        // Rule 7: every document the product requires must be uploaded before approval
-        if (!missingDocuments.isEmpty()) {
-            List<String> names = missingDocuments.stream().map(DocumentType::getName).toList();
+        // e.g. rule 7: every document the product requires must be uploaded before approval
+        if (!problems.isEmpty()) {
             throw new ConflictException("Application with id " + application.getId()
-                    + " cannot be approved, required documents are missing: " + String.join(", ", names));
+                    + " cannot be approved, " + String.join("; ", problems));
         }
         application.setStatus(ApplicationStatus.APPROVED);
         application.setDecisionComment(null); // an approved application has no rejection reason

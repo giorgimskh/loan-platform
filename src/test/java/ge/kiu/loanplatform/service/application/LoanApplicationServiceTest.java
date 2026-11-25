@@ -29,7 +29,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -66,7 +65,8 @@ class LoanApplicationServiceTest {
     @Spy
     private LoanCalculatorService loanCalculatorService = new LoanCalculatorService();
 
-    @InjectMocks
+    // Built by hand in setUp: @InjectMocks cannot fill the List<ApprovalRule>.
+    // The real RequiredDocumentsRule is used (plain logic, no database), so rule 7 is really tested.
     private LoanApplicationService loanApplicationService;
 
     private Customer customer;
@@ -74,6 +74,10 @@ class LoanApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        loanApplicationService = new LoanApplicationService(loanApplicationRepository, customerRepository,
+                loanProductRepository, fileStorageService, loanCalculatorService, eventPublisher,
+                List.of(new RequiredDocumentsRule()));
+
         customer = new Customer();
         customer.setId(1L);
         customer.setFullName("Ana Beridze");

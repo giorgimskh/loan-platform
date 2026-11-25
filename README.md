@@ -166,17 +166,29 @@ you run all tests.
 `LoanApplicationService` is the subject. When an application is created, approved or rejected, it publishes an
 `ApplicationStatusChangedEvent` through Spring's `ApplicationEventPublisher`. It does not know who receives
 the event. `CustomerNotificationListener` is an observer: its `@TransactionalEventListener` method runs after the
-transaction commits and writes the message the customer would receive to the log. For example:
+transaction commits, builds the message for the customer and hands it to a `NotificationSender` (an interface).
+The only implementation, `LogNotificationSender`, writes it to the log because there is no mail server; an e-mail
+sender could be added later without changing the listener. For example:
 `To Ana Beridze <ana@example.com>: your loan application #5 was REJECTED. Reason: Income too low`.
 To add a new reaction (for example an audit log), add another listener class. The service does not change.
 
 ## Command pattern: officer decisions
 
 Approve and reject are command objects that implement `DecisionCommand`: `ApproveCommand` carries the list of
-documents that are still missing (rule 7), and `RejectCommand` carries the rejection reason. Both decisions share
+problems the approval rules found (see below), and `RejectCommand` carries the rejection reason. Both decisions share
 the same steps, which `LoanApplicationService.executeDecision` writes once: check rule 4 (no repeated decision),
 run `command.execute(...)`, add a history line, and publish the status change event. Only `execute` is different
 for each decision. Commands are plain objects, not Spring beans, because a new one is made for every request.
+
+## Chain of responsibility: approval rules
+
+Every check an application must pass before approval is a class that implements `ApprovalRule`
+(`String findProblem(LoanApplication)`: `null` = passed, otherwise the reason). Today there is one rule,
+`RequiredDocumentsRule` (rule 7). Spring injects every `ApprovalRule` bean into `LoanApplicationService` as a
+`List<ApprovalRule>`; approve (and undo back to APPROVED) asks each rule in turn and refuses with 409 when any
+rule found a problem. A new check is a new `@Component` class; the service does not change. Which document types
+are missing is worked out by `LoanApplication.findMissingDocumentTypes()`, also used by
+`GET /api/applications/{id}/missing-documents`.
 
 ## Memento pattern: undo the last decision
 
@@ -200,8 +212,10 @@ src/main/java/ge/kiu/loanplatform
 │   ├── product      LoanProductService
 │   ├── application  LoanApplicationService, LoanCalculatorService,
 │   │                ApplicationStatusChangedEvent, CustomerNotificationListener (observer pattern),
-│   │                DecisionCommand, ApproveCommand, RejectCommand (command pattern)
-│   └── document     DocumentService, DocumentTypeService, FileStorageService
+│   │                NotificationSender (interface), LogNotificationSender,
+│   │                DecisionCommand, ApproveCommand, RejectCommand (command pattern),
+│   │                ApprovalRule (interface), RequiredDocumentsRule (chain of responsibility)
+│   └── document     DocumentService, DocumentTypeService, FileStorageService (interface), LocalFileStorageService
 ├── repository   Spring Data JPA repositories (method-name queries and @Query)
 │   ├── customer     CustomerRepository
 │   ├── product      LoanProductRepository

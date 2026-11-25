@@ -18,18 +18,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 // Tests rule 6 with real files, written to a temporary folder that JUnit deletes afterwards.
-class FileStorageServiceTest {
+class LocalFileStorageServiceTest {
 
     @TempDir
     Path tempDir;
 
-    private FileStorageService fileStorageService;
+    private LocalFileStorageService fileStorageService;
 
     @BeforeEach
     void setUp() {
         AppProperties appProperties = new AppProperties();
         appProperties.setUploadDir(tempDir.toString());
-        fileStorageService = new FileStorageService(appProperties);
+        fileStorageService = new LocalFileStorageService(appProperties);
     }
 
     @Test

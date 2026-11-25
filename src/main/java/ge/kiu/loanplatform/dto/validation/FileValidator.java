@@ -15,7 +15,7 @@ import java.util.Map;
 // Checks a file annotated with @ValidFile (presence, size, declared type, and for images the real
 // format and the number of pixels). Bean Validation creates this class itself
 // (it is not a Spring bean, so it needs no stereotype annotation).
-// The rules are in the static method findProblem, so FileStorageService can run exactly the same
+// The rules are in the static method findProblem, so LocalFileStorageService can run exactly the same
 // check again (the website upload does not go through this annotation).
 public class FileValidator implements ConstraintValidator<ValidFile, MultipartFile> {
 

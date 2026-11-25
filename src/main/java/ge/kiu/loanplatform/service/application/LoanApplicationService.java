@@ -17,7 +17,6 @@ import ge.kiu.loanplatform.entity.application.LoanApplication;
 import ge.kiu.loanplatform.entity.application.StatusChange;
 import ge.kiu.loanplatform.entity.customer.Customer;
 import ge.kiu.loanplatform.entity.document.Document;
-import ge.kiu.loanplatform.entity.document.DocumentType;
 import ge.kiu.loanplatform.entity.product.LoanProduct;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
@@ -36,10 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +49,10 @@ public class LoanApplicationService {
     // Observer pattern: the service is the subject. It only announces status changes;
     // Spring hands each event to every @EventListener / @TransactionalEventListener that accepts it.
     private final ApplicationEventPublisher eventPublisher;
+    // Chain of responsibility: every check an application must pass before it can be approved.
+    // Spring puts every bean that implements ApprovalRule into this list, so a new rule is
+    // just a new @Component class; this service does not change.
+    private final List<ApprovalRule> approvalRules;
 
     @Transactional
     public LoanApplicationResponse create(LoanApplicationRequest request) {
@@ -155,7 +155,7 @@ public class LoanApplicationService {
     // Rule 7: the documents the product requires that are not uploaded yet (empty list = nothing is missing)
     @Transactional(readOnly = true)
     public List<DocumentTypeResponse> getMissingDocuments(Long id) {
-        return findMissingDocumentTypes(findApplication(id)).stream()
+        return findApplication(id).findMissingDocumentTypes().stream()
                 .map(DocumentTypeResponse::from)
                 .toList();
     }
@@ -211,8 +211,8 @@ public class LoanApplicationService {
     @Transactional
     public LoanApplicationResponse approve(Long id) {
         LoanApplication application = findApplication(id);
-        // Command pattern: the command carries what it needs, here the documents still missing (rule 7)
-        return executeDecision(application, new ApproveCommand(findMissingDocumentTypes(application)));
+        // Command pattern: the command carries what it needs, here the problems the approval rules found
+        return executeDecision(application, new ApproveCommand(findApprovalProblems(application)));
     }
 
     @Transactional
@@ -238,13 +238,12 @@ public class LoanApplicationService {
         }
         ApplicationStateMemento before = history.get(history.size() - 2).toMemento();
 
-        // Rule 7 still applies: undo must not approve an application whose documents are missing
+        // The approval rules still apply: undo must not approve an application that could not be approved
         if (before.status() == ApplicationStatus.APPROVED) {
-            List<DocumentType> missing = findMissingDocumentTypes(application);
-            if (!missing.isEmpty()) {
-                List<String> names = missing.stream().map(DocumentType::getName).toList();
+            List<String> problems = findApprovalProblems(application);
+            if (!problems.isEmpty()) {
                 throw new ConflictException("Application with id " + id
-                        + " cannot go back to APPROVED, required documents are missing: " + String.join(", ", names));
+                        + " cannot go back to APPROVED, " + String.join("; ", problems));
             }
         }
 
@@ -329,22 +328,17 @@ public class LoanApplicationService {
                 application.getDecisionComment()));
     }
 
-    // Rule 7: compare what the product requires with what was uploaded
-    private List<DocumentType> findMissingDocumentTypes(LoanApplication application) {
-        Set<Long> uploadedTypeIds = new HashSet<>();
-        for (Document document : application.getDocuments()) {
-            uploadedTypeIds.add(document.getDocumentType().getId());
-        }
-
-        List<DocumentType> missing = new ArrayList<>();
-        for (DocumentType required : application.getLoanProduct().getRequiredDocuments()) {
-            if (!uploadedTypeIds.contains(required.getId())) {
-                missing.add(required);
+    // Chain of responsibility: asks every approval rule in turn and collects what they object to
+    // (empty list = every rule is satisfied, the application may be approved)
+    private List<String> findApprovalProblems(LoanApplication application) {
+        List<String> problems = new ArrayList<>();
+        for (ApprovalRule rule : approvalRules) {
+            String problem = rule.findProblem(application);
+            if (problem != null) {
+                problems.add(problem);
             }
         }
-        // requiredDocuments is a Set, which has no order; sorting keeps the answer the same every time
-        missing.sort(Comparator.comparing(DocumentType::getName));
-        return missing;
+        return problems;
     }
 
     // Rule 4, first half: an application cannot get the decision it already has
