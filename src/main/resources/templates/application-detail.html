@@ -44,9 +44,12 @@
             </div>
         </dl>
 
-        <!-- only a SUBMITTED application can be edited (rule 4) -->
-        <div class="file-tools" th:if="${loanApplication.status.name() == 'SUBMITTED'}">
-            <a class="button quiet" th:href="@{/ui/applications/{id}/edit(id=${loanApplication.id})}">Edit application</a>
+        <div class="file-tools">
+            <!-- only a SUBMITTED application can be edited (rule 4) -->
+            <a class="button quiet" th:if="${loanApplication.status.name() == 'SUBMITTED'}"
+               th:href="@{/ui/applications/{id}/edit(id=${loanApplication.id})}">Edit application</a>
+            <!-- visitor pattern: the REST endpoint sends the whole file as a .txt download -->
+            <a class="button quiet" th:href="@{/api/applications/{id}/file(id=${loanApplication.id})}">Download application file</a>
         </div>
     </section>
 
@@ -119,12 +122,14 @@
             <!-- "schedule" (RepaymentScheduleResponse) is only in the Model when the application is APPROVED -->
             <section class="card" aria-labelledby="schedule-title" th:if="${schedule != null}">
                 <h2 id="schedule-title">Repayment schedule</h2>
-                <p class="lead" th:text="'Equal monthly payments at ' + ${schedule.summary.interestRate} + '% per year.'">Equal monthly payments at 14.50% per year.</p>
+                <!-- Strategy pattern: the label of the repayment method that calculated this schedule -->
+                <p class="lead" th:text="${schedule.summary.repaymentType.label} + ' at ' + ${schedule.summary.interestRate} + '% per year.'">Equal monthly payments at 14.50% per year.</p>
 
-                <dl class="totals wide">
+                <dl class="totals wide" th:with="decreasing=${schedule.summary.repaymentType.name() == 'DIFFERENTIATED'}">
                     <div>
-                        <dt>Monthly payment</dt>
-                        <dd th:text="${#numbers.formatDecimal(schedule.summary.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</dd>
+                        <dt th:text="${decreasing} ? 'First to last payment' : 'Monthly payment'">Monthly payment</dt>
+                        <dd th:if="${!decreasing}" th:text="${#numbers.formatDecimal(schedule.summary.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</dd>
+                        <dd th:if="${decreasing}" th:text="${#numbers.formatDecimal(schedule.summary.monthlyPayment, 1, 'COMMA', 2, 'POINT')} + ' to ' + ${#numbers.formatDecimal(schedule.summary.lastPayment, 1, 'COMMA', 2, 'POINT')}">477.09 to 421.66</dd>
                     </div>
                     <div>
                         <dt>Total interest</dt>
@@ -241,6 +246,21 @@
                 <p class="empty-note" th:if="${#lists.isEmpty(history)}">
                     No history was recorded for this application: it was created before the history existed.
                 </p>
+            </section>
+
+            <!-- Visitor pattern: PersonalDataVisitor went through every part of the application file.
+                 "personalData" is a list of PersonalDataItem (source, field, value). -->
+            <section class="card" aria-labelledby="personal-data-title">
+                <h2 id="personal-data-title">Personal data
+                    <span class="count" th:text="${#lists.size(personalData)}">5</span>
+                </h2>
+                <p class="lead">Everything this application stores about the customer.</p>
+                <dl class="data-list">
+                    <div th:each="item : ${personalData}">
+                        <dt th:text="${item.source} + ', ' + ${#strings.toLowerCase(item.field)}">Customer, personal number</dt>
+                        <dd th:text="${item.value}">01234567890</dd>
+                    </div>
+                </dl>
             </section>
         </aside>
     </div>

@@ -7,6 +7,7 @@ import ge.kiu.loanplatform.dto.application.RejectRequest;
 import ge.kiu.loanplatform.dto.application.StatusChangeResponse;
 import ge.kiu.loanplatform.dto.calculation.RepaymentScheduleResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.file.PersonalDataItem;
 import ge.kiu.loanplatform.dto.report.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.report.StatisticsResponse;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
@@ -23,7 +24,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +41,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Tag(name = "Applications", description = "Submit, change, decide and report on loan applications")
@@ -103,6 +109,27 @@ public class LoanApplicationController {
     @GetMapping("/{id}/missing-documents")
     public List<DocumentTypeResponse> missingDocuments(@PathVariable @Positive(message = "Id must be a positive number") Long id) {
         return loanApplicationService.getMissingDocuments(id);
+    }
+
+    // Visitor pattern: the whole application file as a plain-text download (application-5.txt).
+    // ResponseEntity lets us set the headers; the body is the text itself, not JSON.
+    @GetMapping("/{id}/file")
+    public ResponseEntity<String> file(@PathVariable @Positive(message = "Id must be a positive number") Long id) {
+        String text = loanApplicationService.exportAsText(id);
+        // "attachment": the browser saves the file instead of showing it
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename("application-" + id + ".txt")
+                .build();
+        return ResponseEntity.ok()
+                .contentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8)) // UTF-8: Georgian names stay readable
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(text);
+    }
+
+    // Visitor pattern: every place in the application file that holds personal data (JSON list)
+    @GetMapping("/{id}/personal-data")
+    public List<PersonalDataItem> personalData(@PathVariable @Positive(message = "Id must be a positive number") Long id) {
+        return loanApplicationService.getPersonalData(id);
     }
 
     // The month-by-month repayment plan of an APPROVED application (409 for other statuses)

@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.config.data;
 
 import ge.kiu.loanplatform.entity.document.DocumentType;
 import ge.kiu.loanplatform.entity.product.LoanProduct;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.repository.document.DocumentTypeRepository;
 import ge.kiu.loanplatform.repository.product.LoanProductRepository;
 import org.springframework.boot.CommandLineRunner;
@@ -29,8 +30,11 @@ public class DataInitializer {
 
             loanProductRepository.save(product("Consumer Loan", "14.50", "500.00", "20000.00", 3, 48,
                     Set.of(idCard)));
-            loanProductRepository.save(product("Mortgage", "9.75", "20000.00", "500000.00", 60, 240,
-                    Set.of(idCard)));
+            LoanProduct mortgage = product("Mortgage", "9.75", "20000.00", "500000.00", 60, 240,
+                    Set.of(idCard));
+            // a big, long loan: smaller total interest matters most here, so it uses the other strategy
+            mortgage.setRepaymentType(RepaymentType.DIFFERENTIATED);
+            loanProductRepository.save(mortgage);
         };
     }
 

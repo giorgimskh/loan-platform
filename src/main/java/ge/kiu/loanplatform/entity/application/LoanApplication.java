@@ -79,6 +79,23 @@ public class LoanApplication {
         createdAt = LocalDateTime.now();
     }
 
+    // Static factory method: the only way the application code creates a new application.
+    // The name says what happens (a customer submits an application), and the rules of a new
+    // application live here, in one place: it starts as SUBMITTED (rule 3) and its history
+    // starts with that first line. The caller cannot forget either step.
+    // (The no-argument constructor stays public because JPA needs it and the tests use it.)
+    public static LoanApplication submit(Customer customer, LoanProduct loanProduct,
+                                         BigDecimal amount, int termMonths) {
+        LoanApplication application = new LoanApplication();
+        application.customer = customer;
+        application.loanProduct = loanProduct;
+        application.amount = amount;
+        application.termMonths = termMonths;
+        application.status = ApplicationStatus.SUBMITTED; // Rule 3: new applications start as SUBMITTED
+        application.statusHistory.add(StatusChange.from(application)); // the first line of its history
+        return application;
+    }
+
     // Memento pattern (this class is the originator): only the application itself decides
     // what goes into a snapshot of its state and how to go back to one.
     public ApplicationStateMemento createMemento() {

@@ -6,14 +6,19 @@ import ge.kiu.loanplatform.dto.application.LoanApplicationUpdateRequest;
 import ge.kiu.loanplatform.dto.application.RejectRequest;
 import ge.kiu.loanplatform.dto.application.StatusChangeResponse;
 import ge.kiu.loanplatform.dto.calculation.PaymentCalculationResponse;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.dto.calculation.RepaymentScheduleResponse;
 import ge.kiu.loanplatform.dto.calculation.ScheduleEntryResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.file.PersonalDataItem;
 import ge.kiu.loanplatform.dto.report.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.report.StatisticsResponse;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
+import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.application.LoanApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +41,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,6 +76,7 @@ class LoanApplicationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors.customerId").exists())
                 .andExpect(jsonPath("$.fieldErrors.loanProductId").exists())
                 .andExpect(jsonPath("$.fieldErrors.amount").exists())
@@ -130,6 +138,7 @@ class LoanApplicationControllerTest {
                                 {"customerId":1,"loanProductId":1,"amount":50,"termMonths":12}
                                 """))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"))
                 .andExpect(jsonPath("$.message").value("Amount must be between 500.00 and 20000.00 for product Consumer Loan"));
     }
 
@@ -165,7 +174,7 @@ class LoanApplicationControllerTest {
     @Test
     void update_returns409_whenApplicationIsNotSubmitted() throws Exception { // rule 4
         when(loanApplicationService.update(eq(1L), any(LoanApplicationUpdateRequest.class)))
-                .thenThrow(new ConflictException("Application with id 1 is APPROVED and cannot be modified"));
+                .thenThrow(new InvalidStatusException(ErrorCode.APPLICATION_NOT_MODIFIABLE, ApplicationStatus.APPROVED, "Application with id 1 is APPROVED and cannot be modified."));
 
         mockMvc.perform(put("/api/applications/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -173,7 +182,10 @@ class LoanApplicationControllerTest {
                                 {"loanProductId":1,"amount":6000,"termMonths":24}
                                 """))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("Application with id 1 is APPROVED and cannot be modified"));
+                .andExpect(jsonPath("$.code").value("APPLICATION_NOT_MODIFIABLE"))
+                .andExpect(jsonPath("$.message").value("Application with id 1 is APPROVED and cannot be modified. An APPROVED application can only be rejected or have its decision undone."))
+                .andExpect(jsonPath("$.currentStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.allowedStatuses[0]").value("REJECTED"));
     }
 
     @Test
@@ -188,11 +200,15 @@ class LoanApplicationControllerTest {
     @Test
     void approve_returns409_whenApplicationIsNotSubmitted() throws Exception {
         when(loanApplicationService.approve(1L))
-                .thenThrow(new ConflictException("Application with id 1 is APPROVED and cannot be approved"));
+                .thenThrow(new InvalidStatusException(ErrorCode.INVALID_STATUS_TRANSITION, ApplicationStatus.APPROVED, "Application with id 1 is APPROVED and cannot be approved."));
 
         mockMvc.perform(put("/api/applications/1/approve"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409));
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("INVALID_STATUS_TRANSITION"))
+                .andExpect(jsonPath("$.message").value("Application with id 1 is APPROVED and cannot be approved. An APPROVED application can only be rejected or have its decision undone."))
+                .andExpect(jsonPath("$.currentStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.allowedStatuses[0]").value("REJECTED"));
     }
 
     @Test
@@ -207,11 +223,16 @@ class LoanApplicationControllerTest {
     @Test
     void undoDecision_returns409_whenThereIsNoDecision() throws Exception {
         when(loanApplicationService.undoLastDecision(1L)).thenThrow(
-                new ConflictException("Application with id 1 is SUBMITTED and has no decision to undo"));
+                new InvalidStatusException(ErrorCode.NO_DECISION_TO_UNDO, ApplicationStatus.SUBMITTED, "Application with id 1 is SUBMITTED and has no decision to undo."));
 
         mockMvc.perform(put("/api/applications/1/undo-decision"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.status").value(409));
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("NO_DECISION_TO_UNDO"))
+                .andExpect(jsonPath("$.message").value("Application with id 1 is SUBMITTED and has no decision to undo. A SUBMITTED application is waiting for a decision: it can be modified, cancelled, approved or rejected."))
+                .andExpect(jsonPath("$.currentStatus").value("SUBMITTED"))
+                .andExpect(jsonPath("$.allowedStatuses[0]").value("APPROVED"))
+                .andExpect(jsonPath("$.allowedStatuses[1]").value("REJECTED"));
     }
 
     @Test
@@ -281,11 +302,15 @@ class LoanApplicationControllerTest {
 
     @Test
     void delete_returns409_whenApplicationIsNotSubmitted() throws Exception {
-        doThrow(new ConflictException("Application with id 1 is REJECTED and cannot be cancelled"))
+        doThrow(new InvalidStatusException(ErrorCode.APPLICATION_NOT_MODIFIABLE, ApplicationStatus.REJECTED, "Application with id 1 is REJECTED and cannot be cancelled."))
                 .when(loanApplicationService).delete(1L);
 
         mockMvc.perform(delete("/api/applications/1"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("APPLICATION_NOT_MODIFIABLE"))
+                .andExpect(jsonPath("$.message").value("Application with id 1 is REJECTED and cannot be cancelled. A REJECTED application can only be approved or have its decision undone."))
+                .andExpect(jsonPath("$.currentStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.allowedStatuses[0]").value("APPROVED"));
     }
 
     @Test
@@ -386,9 +411,52 @@ class LoanApplicationControllerTest {
     }
 
     @Test
+    void file_returnsTheApplicationFileAsATextDownload() throws Exception { // visitor pattern
+        when(loanApplicationService.exportAsText(1L)).thenReturn("LOAN APPLICATION FILE #1\nStatus: SUBMITTED\n");
+
+        mockMvc.perform(get("/api/applications/1/file"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/plain;charset=UTF-8"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"application-1.txt\""))
+                .andExpect(content().string("LOAN APPLICATION FILE #1\nStatus: SUBMITTED\n"));
+    }
+
+    @Test
+    void personalData_returnsTheListAsJson() throws Exception { // visitor pattern
+        when(loanApplicationService.getPersonalData(1L)).thenReturn(List.of(
+                new PersonalDataItem("Customer", "Personal number", "01234567890")));
+
+        mockMvc.perform(get("/api/applications/1/personal-data"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].source").value("Customer"))
+                .andExpect(jsonPath("$[0].field").value("Personal number"))
+                .andExpect(jsonPath("$[0].value").value("01234567890"));
+    }
+
+    @Test
+    void file_returns404_whenApplicationDoesNotExist() throws Exception {
+        when(loanApplicationService.exportAsText(99L))
+                .thenThrow(new ResourceNotFoundException("Loan application with id 99 not found"));
+
+        mockMvc.perform(get("/api/applications/99/file"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void file_returns400_whenIdIsNotPositive() throws Exception {
+        mockMvc.perform(get("/api/applications/0/file"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(loanApplicationService);
+    }
+
+    @Test
     void schedule_returns200WithSummaryAndPayments() throws Exception {
         PaymentCalculationResponse summary = new PaymentCalculationResponse(new BigDecimal("5000"),
-                new BigDecimal("14.50"), 12, new BigDecimal("450.11"), new BigDecimal("5401.36"), new BigDecimal("401.36"));
+                new BigDecimal("14.50"), 12, RepaymentType.ANNUITY, new BigDecimal("450.11"), new BigDecimal("450.15"),
+                new BigDecimal("5401.36"), new BigDecimal("401.36"));
         when(loanApplicationService.getSchedule(1L)).thenReturn(new RepaymentScheduleResponse(1L, summary,
                 List.of(new ScheduleEntryResponse(1, new BigDecimal("450.11"), new BigDecimal("60.42"),
                         new BigDecimal("389.69"), new BigDecimal("4610.31")))));
@@ -402,11 +470,16 @@ class LoanApplicationControllerTest {
 
     @Test
     void schedule_returns409_whenApplicationIsNotApproved() throws Exception {
-        when(loanApplicationService.getSchedule(1L)).thenThrow(new ConflictException(
-                "Application with id 1 is SUBMITTED; only an APPROVED application has a repayment schedule"));
+        when(loanApplicationService.getSchedule(1L)).thenThrow(
+                new InvalidStatusException(ErrorCode.NO_REPAYMENT_SCHEDULE, ApplicationStatus.SUBMITTED, "Application with id 1 is SUBMITTED and has no repayment schedule."));
 
         mockMvc.perform(get("/api/applications/1/schedule"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NO_REPAYMENT_SCHEDULE"))
+                .andExpect(jsonPath("$.message").value("Application with id 1 is SUBMITTED and has no repayment schedule. A SUBMITTED application is waiting for a decision: it can be modified, cancelled, approved or rejected."))
+                .andExpect(jsonPath("$.currentStatus").value("SUBMITTED"))
+                .andExpect(jsonPath("$.allowedStatuses[0]").value("APPROVED"))
+                .andExpect(jsonPath("$.allowedStatuses[1]").value("REJECTED"));
     }
 
     @Test

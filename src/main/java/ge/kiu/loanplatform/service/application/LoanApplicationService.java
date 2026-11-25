@@ -8,7 +8,11 @@ import ge.kiu.loanplatform.dto.application.StatusChangeResponse;
 import ge.kiu.loanplatform.dto.calculation.PaymentCalculationResponse;
 import ge.kiu.loanplatform.dto.calculation.RepaymentScheduleResponse;
 import ge.kiu.loanplatform.dto.calculation.ScheduleEntryResponse;
+import ge.kiu.loanplatform.dto.customer.CustomerResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.file.ApplicationFile;
+import ge.kiu.loanplatform.dto.file.PersonalDataItem;
+import ge.kiu.loanplatform.dto.product.LoanProductResponse;
 import ge.kiu.loanplatform.dto.report.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.report.StatisticsResponse;
 import ge.kiu.loanplatform.entity.application.ApplicationStateMemento;
@@ -18,8 +22,11 @@ import ge.kiu.loanplatform.entity.application.StatusChange;
 import ge.kiu.loanplatform.entity.customer.Customer;
 import ge.kiu.loanplatform.entity.document.Document;
 import ge.kiu.loanplatform.entity.product.LoanProduct;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.application.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.customer.CustomerRepository;
@@ -28,6 +35,8 @@ import ge.kiu.loanplatform.service.application.command.ApproveCommand;
 import ge.kiu.loanplatform.service.application.command.DecisionCommand;
 import ge.kiu.loanplatform.service.application.command.RejectCommand;
 import ge.kiu.loanplatform.service.application.event.ApplicationStatusChangedEvent;
+import ge.kiu.loanplatform.service.application.file.PersonalDataVisitor;
+import ge.kiu.loanplatform.service.application.file.TextExportVisitor;
 import ge.kiu.loanplatform.service.application.rule.ApprovalRule;
 import ge.kiu.loanplatform.service.calculation.LoanCalculatorService;
 import ge.kiu.loanplatform.service.storage.FileStorageService;
@@ -69,13 +78,8 @@ public class LoanApplicationService {
 
         validateAmountAndTerm(product, request.amount(), request.termMonths());
 
-        LoanApplication application = new LoanApplication();
-        application.setCustomer(customer);
-        application.setLoanProduct(product);
-        application.setAmount(request.amount());
-        application.setTermMonths(request.termMonths());
-        application.setStatus(ApplicationStatus.SUBMITTED); // Rule 3: new applications start as SUBMITTED
-        recordStatusChange(application); // the first line of its history
+        // Static factory method: starts as SUBMITTED (rule 3) with the first line of its history
+        LoanApplication application = LoanApplication.submit(customer, product, request.amount(), request.termMonths());
 
         LoanApplication saved = loanApplicationRepository.save(application);
         // published after save(), because only then does the application have an id
@@ -158,6 +162,24 @@ public class LoanApplicationService {
                 .toList();
     }
 
+    // Visitor pattern: the whole application file as plain text for the archive.
+    // The file is the object structure; TextExportVisitor is the operation that walks through it.
+    @Transactional(readOnly = true)
+    public String exportAsText(Long id) {
+        TextExportVisitor visitor = new TextExportVisitor(); // a new one per file: it collects text while visiting
+        buildFile(findApplication(id)).accept(visitor);
+        return visitor.getText();
+    }
+
+    // Visitor pattern: a second operation on the same file. Every place in it that holds personal data
+    // (customer details, uploaded file names, rejection reasons). The parts did not change for it.
+    @Transactional(readOnly = true)
+    public List<PersonalDataItem> getPersonalData(Long id) {
+        PersonalDataVisitor visitor = new PersonalDataVisitor();
+        buildFile(findApplication(id)).accept(visitor);
+        return visitor.getItems();
+    }
+
     // Rule 7: the documents the product requires that are not uploaded yet (empty list = nothing is missing)
     @Transactional(readOnly = true)
     public List<DocumentTypeResponse> getMissingDocuments(Long id) {
@@ -174,24 +196,29 @@ public class LoanApplicationService {
         // the same rules 1 and 2 as for a real application: no offer for a loan the product does not allow
         validateAmountAndTerm(product, amount, termMonths);
 
+        // Strategy pattern: the product decides how its loans are paid back
+        RepaymentType type = product.getRepaymentType();
         List<ScheduleEntryResponse> schedule =
-                loanCalculatorService.buildSchedule(amount, product.getInterestRate(), termMonths);
-        return loanCalculatorService.summarize(amount, product.getInterestRate(), termMonths, schedule);
+                loanCalculatorService.buildSchedule(type, amount, product.getInterestRate(), termMonths);
+        return loanCalculatorService.summarize(type, amount, product.getInterestRate(), termMonths, schedule);
     }
 
     // The month-by-month repayment plan. Only an APPROVED application becomes a loan, so only it has a plan.
     @Transactional(readOnly = true)
     public RepaymentScheduleResponse getSchedule(Long id) {
         LoanApplication application = findApplication(id);
-        if (application.getStatus() != ApplicationStatus.APPROVED) {
-            throw new ConflictException("Application with id " + id + " is " + application.getStatus()
-                    + "; only an APPROVED application has a repayment schedule");
+        // State pattern: the status itself knows whether it has a schedule
+        if (!application.getStatus().hasRepaymentSchedule()) {
+            throw new InvalidStatusException(ErrorCode.NO_REPAYMENT_SCHEDULE, application.getStatus(),
+                    "Application with id " + id + " is " + application.getStatus() + " and has no repayment schedule.");
         }
 
         BigDecimal interestRate = application.getLoanProduct().getInterestRate();
-        List<ScheduleEntryResponse> schedule = loanCalculatorService.buildSchedule(
+        // Strategy pattern: the product decides how its loans are paid back
+        RepaymentType type = application.getLoanProduct().getRepaymentType();
+        List<ScheduleEntryResponse> schedule = loanCalculatorService.buildSchedule(type,
                 application.getAmount(), interestRate, application.getTermMonths());
-        PaymentCalculationResponse summary = loanCalculatorService.summarize(
+        PaymentCalculationResponse summary = loanCalculatorService.summarize(type,
                 application.getAmount(), interestRate, application.getTermMonths(), schedule);
         return new RepaymentScheduleResponse(id, summary, schedule);
     }
@@ -200,7 +227,7 @@ public class LoanApplicationService {
     @Transactional
     public LoanApplicationResponse update(Long id, LoanApplicationUpdateRequest request) {
         LoanApplication application = findApplication(id);
-        requireSubmitted(application, "modified");
+        requireModifiable(application, "modified");
 
         LoanProduct product = loanProductRepository.findById(request.loanProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Loan product with id " + request.loanProductId() + " not found"));
@@ -233,8 +260,10 @@ public class LoanApplicationService {
     @Transactional
     public LoanApplicationResponse undoLastDecision(Long id) {
         LoanApplication application = findApplication(id);
-        if (application.getStatus() == ApplicationStatus.SUBMITTED) {
-            throw new ConflictException("Application with id " + id + " is SUBMITTED and has no decision to undo");
+        // State pattern: the status itself knows whether a decision was made
+        if (!application.getStatus().hasDecisionToUndo()) {
+            throw new InvalidStatusException(ErrorCode.NO_DECISION_TO_UNDO, application.getStatus(),
+                    "Application with id " + id + " is " + application.getStatus() + " and has no decision to undo.");
         }
         // the history is the caretaker: the last line is the current state,
         // the line before it is the snapshot saved before the last decision
@@ -263,7 +292,7 @@ public class LoanApplicationService {
     @Transactional
     public void delete(Long id) {
         LoanApplication application = findApplication(id);
-        requireSubmitted(application, "cancelled");
+        requireModifiable(application, "cancelled");
 
         // remove the uploaded files from disk
         for (Document document : application.getDocuments()) {
@@ -274,6 +303,16 @@ public class LoanApplicationService {
     }
 
     // ---------- helpers ----------
+
+    // Visitor pattern: puts every part of one application into an ApplicationFile (the object structure).
+    // Runs inside the caller's transaction, so the lazy customer, product and history can still be loaded.
+    private ApplicationFile buildFile(LoanApplication application) {
+        return new ApplicationFile(
+                LoanApplicationResponse.from(application),
+                CustomerResponse.from(application.getCustomer()),
+                LoanProductResponse.from(application.getLoanProduct()),
+                application.getStatusHistory().stream().map(StatusChangeResponse::from).toList());
+    }
 
     private LoanApplication findApplication(Long id) {
         return loanApplicationRepository.findById(id)
@@ -297,9 +336,8 @@ public class LoanApplicationService {
     // Command pattern: the steps every decision shares, written once.
     // Only command.execute() is different for approve and reject.
     private LoanApplicationResponse executeDecision(LoanApplication application, DecisionCommand command) {
-        // Rule 4: a decision can be changed (APPROVED <-> REJECTED), but not repeated.
-        // The action word is the status in lower case: APPROVED -> "approved", REJECTED -> "rejected".
-        requireNotAlready(application, command.targetStatus(), command.targetStatus().name().toLowerCase());
+        // Rule 4: a decision can be changed (APPROVED <-> REJECTED), but not repeated
+        requireCanMoveTo(application, command.targetStatus());
 
         ApplicationStatus previousStatus = application.getStatus();
         command.execute(application);
@@ -311,14 +349,9 @@ public class LoanApplicationService {
 
     // Adds one line to the history: the status (and rejection reason) the application has right now.
     // No repository call is needed: the list has cascade = ALL, so the new line is saved with the application.
-    // Memento pattern: the line is made from the application's own snapshot (createMemento).
+    // StatusChange.from (static factory method) makes the line from the application's own snapshot.
     private void recordStatusChange(LoanApplication application) {
-        ApplicationStateMemento snapshot = application.createMemento();
-        StatusChange change = new StatusChange();
-        change.setLoanApplication(application);
-        change.setStatus(snapshot.status());
-        change.setDecisionComment(snapshot.decisionComment());
-        application.getStatusHistory().add(change);
+        application.getStatusHistory().add(StatusChange.from(application));
     }
 
     // Observer pattern: tells every listener that the application now has a new status.
@@ -347,19 +380,25 @@ public class LoanApplicationService {
         return problems;
     }
 
-    // Rule 4, first half: an application cannot get the decision it already has
-    private void requireNotAlready(LoanApplication application, ApplicationStatus status, String action) {
-        if (application.getStatus() == status) {
-            throw new ConflictException("Application with id " + application.getId() + " is already "
-                    + status + " and cannot be " + action + " again");
+    // Rule 4, first half: a decision can be changed, but not repeated.
+    // State pattern: the current status decides which statuses it may move to.
+    // The action word is the target status in lower case: APPROVED -> "approved", REJECTED -> "rejected".
+    private void requireCanMoveTo(LoanApplication application, ApplicationStatus target) {
+        ApplicationStatus current = application.getStatus();
+        if (!current.canMoveTo(target)) {
+            throw new InvalidStatusException(ErrorCode.INVALID_STATUS_TRANSITION, current,
+                    "Application with id " + application.getId() + " is " + current
+                            + " and cannot be " + target.name().toLowerCase() + ".");
         }
     }
 
-    // Rule 4, second half: only SUBMITTED applications can be cancelled or modified
-    private void requireSubmitted(LoanApplication application, String action) {
-        if (application.getStatus() != ApplicationStatus.SUBMITTED) {
-            throw new ConflictException("Application with id " + application.getId() + " is "
-                    + application.getStatus() + " and cannot be " + action);
+    // Rule 4, second half: only SUBMITTED applications can be cancelled or modified.
+    // State pattern: the status itself knows whether it can still be changed.
+    private void requireModifiable(LoanApplication application, String action) {
+        ApplicationStatus current = application.getStatus();
+        if (!current.canBeModified()) {
+            throw new InvalidStatusException(ErrorCode.APPLICATION_NOT_MODIFIABLE, current,
+                    "Application with id " + application.getId() + " is " + current + " and cannot be " + action + ".");
         }
     }
 }

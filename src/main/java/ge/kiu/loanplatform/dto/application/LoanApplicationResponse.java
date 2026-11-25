@@ -1,6 +1,8 @@
 package ge.kiu.loanplatform.dto.application;
 
 import ge.kiu.loanplatform.dto.document.DocumentResponse;
+import ge.kiu.loanplatform.dto.file.ApplicationPart;
+import ge.kiu.loanplatform.dto.file.ApplicationPartVisitor;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
 
@@ -20,7 +22,13 @@ public record LoanApplicationResponse(
         Long loanProductId,
         String loanProductName,
         List<DocumentResponse> documents
-) {
+) implements ApplicationPart {
+
+    // Visitor pattern: send the visitor to the method for this type of part (double dispatch)
+    @Override
+    public void accept(ApplicationPartVisitor visitor) {
+        visitor.visitApplication(this);
+    }
 
     public static LoanApplicationResponse from(LoanApplication application) {
         return new LoanApplicationResponse(

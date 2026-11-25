@@ -8,6 +8,7 @@ import ge.kiu.loanplatform.dto.application.StatusChangeResponse;
 import ge.kiu.loanplatform.dto.calculation.PaymentCalculationResponse;
 import ge.kiu.loanplatform.dto.calculation.RepaymentScheduleResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.file.PersonalDataItem;
 import ge.kiu.loanplatform.dto.report.ProductTotalResponse;
 import ge.kiu.loanplatform.dto.report.StatisticsResponse;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
@@ -17,8 +18,11 @@ import ge.kiu.loanplatform.entity.customer.Customer;
 import ge.kiu.loanplatform.entity.document.Document;
 import ge.kiu.loanplatform.entity.document.DocumentType;
 import ge.kiu.loanplatform.entity.product.LoanProduct;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.application.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.application.ProductTotalAmount;
@@ -27,6 +31,8 @@ import ge.kiu.loanplatform.repository.product.LoanProductRepository;
 import ge.kiu.loanplatform.service.application.event.ApplicationStatusChangedEvent;
 import ge.kiu.loanplatform.service.application.rule.RequiredDocumentsRule;
 import ge.kiu.loanplatform.service.calculation.LoanCalculatorService;
+import ge.kiu.loanplatform.service.calculation.strategy.AnnuityRepaymentStrategy;
+import ge.kiu.loanplatform.service.calculation.strategy.DifferentiatedRepaymentStrategy;
 import ge.kiu.loanplatform.service.storage.FileStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,7 +72,8 @@ class LoanApplicationServiceTest {
     private ApplicationEventPublisher eventPublisher;
     // @Spy = the real object, not a fake: the calculator is pure maths, so the tests use it as it is
     @Spy
-    private LoanCalculatorService loanCalculatorService = new LoanCalculatorService();
+    private LoanCalculatorService loanCalculatorService = new LoanCalculatorService(
+            List.of(new AnnuityRepaymentStrategy(), new DifferentiatedRepaymentStrategy()));
 
     // Built by hand in setUp: @InjectMocks cannot fill the List<ApprovalRule>.
     // The real RequiredDocumentsRule is used (plain logic, no database), so rule 7 is really tested.
@@ -184,7 +191,9 @@ class LoanApplicationServiceTest {
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.APPROVED)));
 
         assertThatThrownBy(() -> loanApplicationService.approve(1L))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Application with id 1 is APPROVED and cannot be approved. An APPROVED application can only be rejected or have its decision undone.")
+                .extracting("code").isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
         verify(eventPublisher, never()).publishEvent(any()); // a refused decision is not announced
     }
 
@@ -225,7 +234,9 @@ class LoanApplicationServiceTest {
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.REJECTED)));
 
         assertThatThrownBy(() -> loanApplicationService.reject(1L, new RejectRequest("Again")))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Application with id 1 is REJECTED and cannot be rejected. A REJECTED application can only be approved or have its decision undone.")
+                .extracting("code").isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
     }
 
     // ---------- observer pattern: status change events ----------
@@ -307,8 +318,9 @@ class LoanApplicationServiceTest {
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
 
         assertThatThrownBy(() -> loanApplicationService.undoLastDecision(1L))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("no decision to undo");
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Application with id 1 is SUBMITTED and has no decision to undo. A SUBMITTED application is waiting for a decision: it can be modified, cancelled, approved or rejected.")
+                .extracting("code").isEqualTo(ErrorCode.NO_DECISION_TO_UNDO);
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -362,7 +374,9 @@ class LoanApplicationServiceTest {
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
 
         assertThatThrownBy(() -> loanApplicationService.delete(1L))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Application with id 1 is APPROVED and cannot be cancelled. An APPROVED application can only be rejected or have its decision undone.")
+                .extracting("code").isEqualTo(ErrorCode.APPLICATION_NOT_MODIFIABLE);
         verify(loanApplicationRepository, never()).delete(any());
     }
 
@@ -396,8 +410,9 @@ class LoanApplicationServiceTest {
 
         assertThatThrownBy(() -> loanApplicationService.update(1L,
                 new LoanApplicationUpdateRequest(1L, new BigDecimal("6000"), 24)))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("cannot be modified");
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Application with id 1 is APPROVED and cannot be modified. An APPROVED application can only be rejected or have its decision undone.")
+                .extracting("code").isEqualTo(ErrorCode.APPLICATION_NOT_MODIFIABLE);
     }
 
     @Test
@@ -547,7 +562,20 @@ class LoanApplicationServiceTest {
 
         assertThat(result.interestRate()).isEqualByComparingTo("14.50");
         assertThat(result.monthlyPayment()).isEqualByComparingTo("450.11");
+        assertThat(result.lastPayment()).isEqualByComparingTo("450.15"); // annuity: only rounding cents apart
         assertThat(result.totalInterest()).isEqualByComparingTo("401.36");
+    }
+
+    @Test
+    void calculate_usesTheProductsRepaymentType() { // strategy pattern
+        product.setRepaymentType(RepaymentType.DIFFERENTIATED);
+        when(loanProductRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        PaymentCalculationResponse result = loanApplicationService.calculate(1L, new BigDecimal("5000"), 12);
+
+        assertThat(result.monthlyPayment()).isEqualByComparingTo("477.09"); // 416.67 of the loan + 60.42 interest
+        assertThat(result.lastPayment()).isEqualByComparingTo("421.66");    // the smallest payment
+        assertThat(result.totalInterest()).isEqualByComparingTo("392.70");  // less than the annuity's 401.36
     }
 
     @Test
@@ -578,11 +606,64 @@ class LoanApplicationServiceTest {
     }
 
     @Test
+    void getSchedule_usesTheRepaymentTypeOfTheApplicationsProduct() { // strategy pattern
+        product.setRepaymentType(RepaymentType.DIFFERENTIATED);
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.APPROVED)));
+
+        RepaymentScheduleResponse schedule = loanApplicationService.getSchedule(1L);
+
+        assertThat(schedule.payments().getFirst().payment()).isEqualByComparingTo("477.09");
+        assertThat(schedule.payments().getLast().payment()).isEqualByComparingTo("421.66");
+    }
+
+    @Test
     void getSchedule_throwsConflict_whenApplicationIsNotApproved() {
         when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application(ApplicationStatus.SUBMITTED)));
 
         assertThatThrownBy(() -> loanApplicationService.getSchedule(1L))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Application with id 1 is SUBMITTED and has no repayment schedule. A SUBMITTED application is waiting for a decision: it can be modified, cancelled, approved or rejected.")
+                .extracting("code").isEqualTo(ErrorCode.NO_REPAYMENT_SCHEDULE);
+    }
+
+    // ---------- visitor pattern: application file ----------
+
+    @Test
+    void exportAsText_writesTheWholeFileOfTheApplication() {
+        LoanApplication application = withHistory(application(ApplicationStatus.REJECTED),
+                ApplicationStatus.SUBMITTED, ApplicationStatus.REJECTED);
+        application.setDecisionComment("Income too low");
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        String text = loanApplicationService.exportAsText(1L);
+
+        assertThat(text).startsWith("LOAN APPLICATION FILE #1\nStatus: REJECTED\n");
+        assertThat(text).contains("Rejection reason: Income too low");
+        assertThat(text).contains("\nCUSTOMER\nName: Ana Beridze\n");
+        assertThat(text).contains("\nLOAN PRODUCT\n");
+        assertThat(text).contains("\nHISTORY\n");
+        assertThat(text).contains(" SUBMITTED\n");
+    }
+
+    @Test
+    void getPersonalData_listsTheCustomerDetailsAndTheRejectionReasons() {
+        LoanApplication application = withHistory(application(ApplicationStatus.REJECTED),
+                ApplicationStatus.SUBMITTED, ApplicationStatus.REJECTED);
+        application.setDecisionComment("Income too low");
+        when(loanApplicationRepository.findById(1L)).thenReturn(Optional.of(application));
+
+        List<PersonalDataItem> items = loanApplicationService.getPersonalData(1L);
+
+        assertThat(items).extracting(PersonalDataItem::field).contains("Name", "Email", "Rejection reason");
+        assertThat(items).extracting(PersonalDataItem::value).contains("Ana Beridze", "Income too low");
+    }
+
+    @Test
+    void exportAsText_throwsNotFound_whenApplicationDoesNotExist() {
+        when(loanApplicationRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> loanApplicationService.exportAsText(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     // ---------- statistics ----------

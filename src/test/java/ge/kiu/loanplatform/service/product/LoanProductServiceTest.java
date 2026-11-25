@@ -3,6 +3,7 @@ package ge.kiu.loanplatform.service.product;
 import ge.kiu.loanplatform.dto.product.LoanProductRequest;
 import ge.kiu.loanplatform.dto.product.LoanProductResponse;
 import ge.kiu.loanplatform.entity.product.LoanProduct;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
@@ -50,6 +51,34 @@ class LoanProductServiceTest {
 
         assertThat(response.name()).isEqualTo("Auto Loan");
         assertThat(response.maxAmount()).isEqualByComparingTo("50000");
+        assertThat(response.repaymentType()).isEqualTo(RepaymentType.ANNUITY); // not given -> ANNUITY
+    }
+
+    @Test
+    void create_savesTheGivenRepaymentType() {
+        when(loanProductRepository.existsByName("Auto Loan")).thenReturn(false);
+        when(documentTypeRepository.findAllById(Set.of())).thenReturn(List.of());
+        when(loanProductRepository.save(any(LoanProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LoanProductResponse response = loanProductService.create(new LoanProductRequest("Auto Loan",
+                new BigDecimal("11.5"), new BigDecimal("1000"), new BigDecimal("50000"), 6, 60,
+                RepaymentType.DIFFERENTIATED, Set.of()));
+
+        assertThat(response.repaymentType()).isEqualTo(RepaymentType.DIFFERENTIATED);
+    }
+
+    @Test
+    void update_keepsTheRepaymentType_whenNoneIsGiven() {
+        LoanProduct existing = new LoanProduct();
+        existing.setId(3L);
+        existing.setName("Auto Loan");
+        existing.setRepaymentType(RepaymentType.DIFFERENTIATED);
+        when(loanProductRepository.findById(3L)).thenReturn(Optional.of(existing));
+        when(documentTypeRepository.findAllById(Set.of())).thenReturn(List.of());
+
+        LoanProductResponse response = loanProductService.update(3L, request("Auto Loan", "1000", "60000", 6, 72));
+
+        assertThat(response.repaymentType()).isEqualTo(RepaymentType.DIFFERENTIATED);
     }
 
     @Test
@@ -137,6 +166,6 @@ class LoanProductServiceTest {
 
     private LoanProductRequest request(String name, String minAmount, String maxAmount, int minTerm, int maxTerm) {
         return new LoanProductRequest(name, new BigDecimal("11.5"), new BigDecimal(minAmount),
-                new BigDecimal(maxAmount), minTerm, maxTerm, Set.of());
+                new BigDecimal(maxAmount), minTerm, maxTerm, null, Set.of());
     }
 }

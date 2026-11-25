@@ -1,6 +1,9 @@
 package ge.kiu.loanplatform.controller.web;
 
+import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.application.LoanApplicationService;
 import ge.kiu.loanplatform.service.customer.CustomerService;
@@ -43,14 +46,17 @@ class WebControllerAdviceTest {
 
     @Test
     void cancel_goesBackToTheApplicationWithTheReason_whenApplicationIsNotSubmitted() throws Exception { // rule 4
-        doThrow(new ConflictException("Application with id 7 is APPROVED and cannot be cancelled"))
+        // InvalidStatusException is a ConflictException, so the website handles it like any conflict
+        doThrow(new InvalidStatusException(ErrorCode.APPLICATION_NOT_MODIFIABLE, ApplicationStatus.APPROVED,
+                "Application with id 7 is APPROVED and cannot be cancelled."))
                 .when(loanApplicationService).delete(7L);
 
         // the browser sends the page the user clicked on in the Referer header
         mockMvc.perform(post("/ui/applications/7/delete")
                         .header("Referer", "http://localhost:8080/ui/applications/7"))
                 .andExpect(redirectedUrl("/ui/applications/7"))
-                .andExpect(flash().attribute("error", "Application with id 7 is APPROVED and cannot be cancelled"));
+                .andExpect(flash().attribute("error",
+                        "Application with id 7 is APPROVED and cannot be cancelled. An APPROVED application can only be rejected or have its decision undone."));
     }
 
     @Test

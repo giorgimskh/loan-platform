@@ -120,6 +120,7 @@ class DocumentTypeControllerTest {
     void delete_returns400_whenIdIsNegative() throws Exception {
         mockMvc.perform(delete("/api/document-types/-1"))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors.id").value("Id must be a positive number"));
     }
 }

@@ -30,10 +30,10 @@
                     <select id="loanProductId" name="loanProductId" aria-describedby="loanProductId-help">
                         <option value="">Choose a product</option>
                         <option th:each="p : ${products}" th:value="${p.id}"
-                                th:text="${p.name} + ' at ' + ${p.interestRate} + '% per year'"
-                                th:selected="${values?.get('loanProductId') == p.id.toString()}">Consumer Loan at 14.50% per year</option>
+                                th:text="${p.name} + ' at ' + ${p.interestRate} + '% per year, ' + ${#strings.toLowerCase(p.repaymentType.label)}"
+                                th:selected="${values?.get('loanProductId') == p.id.toString()}">Consumer Loan at 14.50% per year, equal monthly payments</option>
                     </select>
-                    <p class="help" id="loanProductId-help" th:text="${fieldErrors?.get('loanProductId')} ?: 'The product decides the interest rate'">Hint</p>
+                    <p class="help" id="loanProductId-help" th:text="${fieldErrors?.get('loanProductId')} ?: 'The product decides the interest rate and how the payments are made'">Hint</p>
                 </div>
 
                 <div class="pair">
@@ -47,9 +47,15 @@
 
         <!-- "calculation" is a PaymentCalculationResponse; it only exists after a successful calculation -->
         <section class="calc-result" aria-labelledby="result-title" th:if="${calculation != null}">
-            <h2 id="result-title">Monthly payment</h2>
-            <p class="result-value" th:text="${#numbers.formatDecimal(calculation.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</p>
-            <p class="lead" th:text="'for ' + ${calculation.termMonths} + ' months at ' + ${calculation.interestRate} + '% per year'">for 12 months at 14.50% per year</p>
+            <!-- Strategy pattern: equal payments show one amount; decreasing payments show the first and the last.
+                 calculation.repaymentType says which strategy calculated the numbers. -->
+            <th:block th:with="decreasing=${calculation.repaymentType.name() == 'DIFFERENTIATED'}">
+                <h2 id="result-title" th:text="${decreasing} ? 'First monthly payment' : 'Monthly payment'">Monthly payment</h2>
+                <p class="result-value" th:text="${#numbers.formatDecimal(calculation.monthlyPayment, 1, 'COMMA', 2, 'POINT')}">450.11</p>
+                <p class="lead" th:if="${decreasing}"
+                   th:text="'Falls every month to ' + ${#numbers.formatDecimal(calculation.lastPayment, 1, 'COMMA', 2, 'POINT')} + ' in the last month'">Falls every month to 421.66 in the last month</p>
+                <p class="lead" th:text="'for ' + ${calculation.termMonths} + ' months at ' + ${calculation.interestRate} + '% per year'">for 12 months at 14.50% per year</p>
+            </th:block>
 
             <!-- one bar split in two: the loan itself and the interest on top of it -->
             <div class="split-bar" role="img" aria-label="The loan amount compared with the interest">

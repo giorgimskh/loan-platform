@@ -132,6 +132,8 @@ public class LoanApplicationWebController {
         model.addAttribute("missingDocuments", loanApplicationService.getMissingDocuments(id));
         model.addAttribute("documentTypes", documentTypeService.getAll()); // choices of the upload form
         model.addAttribute("history", loanApplicationService.getHistory(id));
+        // visitor pattern: where this file holds personal data
+        model.addAttribute("personalData", loanApplicationService.getPersonalData(id));
         // only an approved application has a repayment schedule
         if (application.status() == ApplicationStatus.APPROVED) {
             model.addAttribute("schedule", loanApplicationService.getSchedule(id));

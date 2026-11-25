@@ -2,11 +2,11 @@ package ge.kiu.loanplatform.service.document;
 
 import ge.kiu.loanplatform.dto.document.DocumentFile;
 import ge.kiu.loanplatform.dto.document.DocumentResponse;
-import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
 import ge.kiu.loanplatform.entity.document.Document;
 import ge.kiu.loanplatform.entity.document.DocumentType;
-import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.application.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.document.DocumentRepository;
@@ -60,9 +60,11 @@ public class DocumentService {
 
         // After a decision the documents are the proof it was based on, so they must stay
         LoanApplication application = document.getLoanApplication();
-        if (application.getStatus() != ApplicationStatus.SUBMITTED) {
-            throw new ConflictException("Document with id " + id + " belongs to an application that is "
-                    + application.getStatus() + " and cannot be deleted");
+        // State pattern: the status itself knows whether the application can still be changed
+        if (!application.getStatus().canBeModified()) {
+            throw new InvalidStatusException(ErrorCode.APPLICATION_NOT_MODIFIABLE, application.getStatus(),
+                    "Document with id " + id + " belongs to an application that is "
+                            + application.getStatus() + " and cannot be deleted.");
         }
 
         fileStorageService.delete(document.getStoredFilePath()); // the file on disk

@@ -2,6 +2,7 @@ package ge.kiu.loanplatform.dto.product;
 
 import ge.kiu.loanplatform.dto.validation.ValidAmount;
 import ge.kiu.loanplatform.dto.validation.ValidTerm;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -41,6 +42,10 @@ public record LoanProductRequest(
 
         @ValidTerm(label = "Maximum term")
         Integer maxTermMonths,
+
+        // Optional: ANNUITY or DIFFERENTIATED. Not given = a new product gets ANNUITY,
+        // an existing product keeps its type. An unknown value (e.g. "WEEKLY") is a 400 from Jackson.
+        RepaymentType repaymentType,
 
         // ids of DocumentTypes this product requires; may be empty.
         // @Size limits how many ids one request can send (protects the database from a huge list).

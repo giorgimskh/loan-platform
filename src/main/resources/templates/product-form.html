@@ -40,6 +40,19 @@
             </div>
         </fieldset>
 
+        <!-- Strategy pattern: the product chooses how its loans are paid back.
+             The option values are the RepaymentType names, so Spring turns the chosen one into the enum.
+             A new product starts on ANNUITY; the edit page starts on the product's current method. -->
+        <div class="field" th:classappend="${fieldErrors?.get('repaymentType') != null} ? 'invalid'">
+            <label for="repaymentType">Repayment method</label>
+            <select id="repaymentType" name="repaymentType" aria-describedby="repaymentType-help">
+                <option th:each="t : ${repaymentTypes}" th:value="${t.name()}" th:text="${t.label}"
+                        th:selected="${(values?.get('repaymentType') ?: 'ANNUITY') == t.name()}">Equal monthly payments</option>
+            </select>
+            <p class="help" id="repaymentType-help"
+               th:text="${fieldErrors?.get('repaymentType')} ?: 'Decreasing payments cost less interest in total, but the first payments are higher'">Hint</p>
+        </div>
+
         <!-- One checkbox per document type. Every ticked box is sent as requiredDocumentTypeIds=<id>,
              and Spring collects them into the Set<Long> of LoanProductRequest. -->
         <fieldset class="checks" th:classappend="${fieldErrors?.get('requiredDocumentTypeIds') != null} ? 'invalid'">

@@ -153,6 +153,9 @@
                   "});",
                   "pm.test(\"Error message is returned\", function () {",
                   "    pm.expect(pm.response.json().message).to.include(\"already exists\");",
+                  "});",
+                  "pm.test(\"Error code is CONFLICT\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"CONFLICT\");",
                   "});"
                 ]
               }
@@ -1132,6 +1135,11 @@
                   "});",
                   "pm.test(\"Response is a list\", function () {",
                   "    pm.expect(pm.response.json()).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"Every product says how its loans are paid back (strategy pattern)\", function () {",
+                  "    pm.response.json().forEach(function (product) {",
+                  "        pm.expect([\"ANNUITY\", \"DIFFERENTIATED\"]).to.include(product.repaymentType);",
+                  "    });",
                   "});"
                 ]
               }
@@ -1163,7 +1171,10 @@
                   "pm.test(\"Status is 201\", function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
-                  "pm.collectionVariables.set(\"productId\", pm.response.json().id);"
+                  "pm.collectionVariables.set(\"productId\", pm.response.json().id);",
+                  "pm.test(\"No repaymentType was sent, so the product uses equal payments\", function () {",
+                  "    pm.expect(pm.response.json().repaymentType).to.eql(\"ANNUITY\");",
+                  "});"
                 ]
               }
             }
@@ -1438,6 +1449,53 @@
           }
         },
         {
+          "name": "Create product - unknown repayment type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error code is MALFORMED_REQUEST_BODY\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"MALFORMED_REQUEST_BODY\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{productName}} E\",\n  \"interestRate\": 11.5,\n  \"minAmount\": 1000,\n  \"maxAmount\": 50000,\n  \"minTermMonths\": 6,\n  \"maxTermMonths\": 60,\n  \"repaymentType\": \"WEEKLY\",\n  \"requiredDocumentTypeIds\": [1]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "Update product",
           "event": [
             {
@@ -1452,6 +1510,9 @@
                   "    const body = pm.response.json();",
                   "    pm.expect(body.maxTermMonths).to.eql(72);",
                   "    pm.expect(body.requiredDocuments).to.have.lengthOf(1);",
+                  "});",
+                  "pm.test(\"The repayment type is kept when none is sent\", function () {",
+                  "    pm.expect(pm.response.json().repaymentType).to.eql(\"ANNUITY\");",
                   "});"
                 ]
               }
@@ -1538,6 +1599,11 @@
                   "    pm.expect(body.monthlyPayment).to.eql(444.24);",
                   "    pm.expect(body.totalPayment).to.be.above(5000);",
                   "    pm.expect(body.totalInterest).to.be.closeTo(body.totalPayment - 5000, 0.001);",
+                  "});",
+                  "pm.test(\"Equal payments: the last payment is only a few cents away\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.repaymentType).to.eql(\"ANNUITY\");",
+                  "    pm.expect(body.lastPayment).to.eql(444.29);",
                   "});"
                 ]
               }
@@ -1766,7 +1832,10 @@
                   "pm.test(\"Status is 201\", function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
-                  "pm.collectionVariables.set(\"tempProductId\", pm.response.json().id);"
+                  "pm.collectionVariables.set(\"tempProductId\", pm.response.json().id);",
+                  "pm.test(\"The chosen repayment type is saved\", function () {",
+                  "    pm.expect(pm.response.json().repaymentType).to.eql(\"DIFFERENTIATED\");",
+                  "});"
                 ]
               }
             }
@@ -1791,13 +1860,63 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"{{productName}} temp\",\n  \"interestRate\": 11.5,\n  \"minAmount\": 1000,\n  \"maxAmount\": 50000,\n  \"minTermMonths\": 6,\n  \"maxTermMonths\": 60,\n  \"requiredDocumentTypeIds\": []\n}",
+              "raw": "{\n  \"name\": \"{{productName}} temp\",\n  \"interestRate\": 11.5,\n  \"minAmount\": 1000,\n  \"maxAmount\": 50000,\n  \"minTermMonths\": 6,\n  \"maxTermMonths\": 60,\n  \"repaymentType\": \"DIFFERENTIATED\",\n  \"requiredDocumentTypeIds\": []\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             }
+          }
+        },
+        {
+          "name": "Calculate payment - decreasing payments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Decreasing payments: 1000 of the loan every month plus interest (strategy pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.repaymentType).to.eql(\"DIFFERENTIATED\");",
+                  "    pm.expect(body.monthlyPayment).to.eql(1115);",
+                  "    pm.expect(body.lastPayment).to.eql(1009.58);",
+                  "    pm.expect(body.totalInterest).to.eql(747.5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products/{{tempProductId}}/calculate?amount=12000&termMonths=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "products",
+                "{{tempProductId}}",
+                "calculate"
+              ],
+              "query": [
+                {
+                  "key": "amount",
+                  "value": "12000"
+                },
+                {
+                  "key": "termMonths",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Payment calculator. The interest rate (12%) comes from the product. Nothing is saved."
           }
         },
         {
@@ -3314,8 +3433,18 @@
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
                   "});",
-                  "pm.test(\"Error message is returned\", function () {",
-                  "    pm.expect(pm.response.json().message).to.include(\"cannot be approved\");",
+                  "pm.test(\"Error code is INVALID_STATUS_TRANSITION\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"INVALID_STATUS_TRANSITION\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"APPROVED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"REJECTED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"cannot be approved\");",
+                  "    pm.expect(message).to.include(\"An APPROVED application can only be rejected or have its decision undone.\");",
                   "});"
                 ]
               }
@@ -3355,6 +3484,9 @@
                   "    pm.expect(body.payments).to.have.lengthOf(24);",
                   "    pm.expect(body.payments[23].remainingBalance).to.eql(0);",
                   "    pm.expect(body.summary.monthlyPayment).to.be.above(0);",
+                  "});",
+                  "pm.test(\"The summary says which repayment method calculated it\", function () {",
+                  "    pm.expect(pm.response.json().summary.repaymentType).to.eql(\"ANNUITY\");",
                   "});"
                 ]
               }
@@ -3387,6 +3519,19 @@
                 "exec": [
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Error code is APPLICATION_NOT_MODIFIABLE\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"APPLICATION_NOT_MODIFIABLE\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"APPROVED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"REJECTED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"cannot be deleted\");",
+                  "    pm.expect(message).to.include(\"An APPROVED application can only be rejected or have its decision undone.\");",
                   "});"
                 ]
               }
@@ -3521,6 +3666,19 @@
                 "exec": [
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Error code is INVALID_STATUS_TRANSITION\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"INVALID_STATUS_TRANSITION\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"REJECTED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"APPROVED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"cannot be rejected\");",
+                  "    pm.expect(message).to.include(\"A REJECTED application can only be approved or have its decision undone.\");",
                   "});"
                 ]
               }
@@ -3568,6 +3726,19 @@
                 "exec": [
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Error code is NO_REPAYMENT_SCHEDULE\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"NO_REPAYMENT_SCHEDULE\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"REJECTED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"APPROVED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"has no repayment schedule\");",
+                  "    pm.expect(message).to.include(\"A REJECTED application can only be approved or have its decision undone.\");",
                   "});"
                 ]
               }
@@ -3715,6 +3886,19 @@
                 "exec": [
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"Error code is NO_DECISION_TO_UNDO\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"NO_DECISION_TO_UNDO\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"SUBMITTED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"APPROVED\", \"REJECTED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"has no decision to undo\");",
+                  "    pm.expect(message).to.include(\"A SUBMITTED application is waiting for a decision: it can be modified, cancelled, approved or rejected.\");",
                   "});"
                 ]
               }
@@ -3831,8 +4015,18 @@
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
                   "});",
-                  "pm.test(\"Error message is returned\", function () {",
-                  "    pm.expect(pm.response.json().message).to.include(\"cannot be cancelled\");",
+                  "pm.test(\"Error code is APPLICATION_NOT_MODIFIABLE\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"APPLICATION_NOT_MODIFIABLE\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"REJECTED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"APPROVED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"cannot be cancelled\");",
+                  "    pm.expect(message).to.include(\"A REJECTED application can only be approved or have its decision undone.\");",
                   "});"
                 ]
               }
@@ -3977,8 +4171,18 @@
                   "pm.test(\"Status is 409\", function () {",
                   "    pm.response.to.have.status(409);",
                   "});",
-                  "pm.test(\"Error message is returned\", function () {",
-                  "    pm.expect(pm.response.json().message).to.include(\"cannot be modified\");",
+                  "pm.test(\"Error code is APPLICATION_NOT_MODIFIABLE\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"APPLICATION_NOT_MODIFIABLE\");",
+                  "});",
+                  "pm.test(\"Current status and allowed statuses are returned (state pattern)\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.currentStatus).to.eql(\"APPROVED\");",
+                  "    pm.expect(body.allowedStatuses).to.eql([\"REJECTED\"]);",
+                  "});",
+                  "pm.test(\"Message says what went wrong and what is still allowed\", function () {",
+                  "    const message = pm.response.json().message;",
+                  "    pm.expect(message).to.include(\"cannot be modified\");",
+                  "    pm.expect(message).to.include(\"An APPROVED application can only be rejected or have its decision undone.\");",
                   "});"
                 ]
               }
@@ -4105,6 +4309,9 @@
                 "exec": [
                   "pm.test(\"Status is 400\", function () {",
                   "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"Error code is INVALID_PARAMETER\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"INVALID_PARAMETER\");",
                   "});"
                 ]
               }
@@ -4143,6 +4350,9 @@
                 "exec": [
                   "pm.test(\"Status is 404\", function () {",
                   "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test(\"Error code is NOT_FOUND\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"NOT_FOUND\");",
                   "});"
                 ]
               }
@@ -4233,6 +4443,9 @@
                   "});",
                   "pm.test(\"Error names the missing parameter\", function () {",
                   "    pm.expect(pm.response.json().message).to.include(\"amountAbove\");",
+                  "});",
+                  "pm.test(\"Error code is MISSING_PARAMETER\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"MISSING_PARAMETER\");",
                   "});"
                 ]
               }
@@ -4425,6 +4638,9 @@
                   "});",
                   "pm.test(\"Field error for id\", function () {",
                   "    pm.expect(pm.response.json().fieldErrors.id).to.eql(\"Id must be a positive number\");",
+                  "});",
+                  "pm.test(\"Error code is VALIDATION_FAILED\", function () {",
+                  "    pm.expect(pm.response.json().code).to.eql(\"VALIDATION_FAILED\");",
                   "});"
                 ]
               }

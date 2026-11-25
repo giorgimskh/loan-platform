@@ -1,6 +1,7 @@
 package ge.kiu.loanplatform.controller.web;
 
 import ge.kiu.loanplatform.dto.product.LoanProductRequest;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 import ge.kiu.loanplatform.service.document.DocumentTypeService;
@@ -21,6 +22,7 @@ import static ge.kiu.loanplatform.controller.web.WebTestData.product;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -56,6 +58,7 @@ class LoanProductWebControllerTest {
                 .andExpect(view().name("products"))
                 .andExpect(content().string(containsString("Consumer Loan")))
                 .andExpect(content().string(containsString("ID Card")))
+                .andExpect(content().string(containsString("Equal monthly payments"))) // the repayment method
                 .andExpect(content().string(containsString("/ui/products/1/edit")));
     }
 
@@ -70,7 +73,21 @@ class LoanProductWebControllerTest {
                 .andExpect(content().string(containsString("ID Card")))
                 .andExpect(content().string(containsString("Bank Statement")))
                 .andExpect(content().string(not(containsString("checked=\"checked\""))))
+                // a new product starts on equal payments; both methods can be chosen
+                .andExpect(content().string(containsString("value=\"ANNUITY\" selected=\"selected\"")))
+                .andExpect(content().string(containsString("Decreasing monthly payments")))
                 .andExpect(content().string(containsString("action=\"/ui/products\"")));
+    }
+
+    @Test
+    void createProduct_sendsTheChosenRepaymentMethod() throws Exception { // strategy pattern
+        when(loanProductService.create(any(LoanProductRequest.class))).thenReturn(product());
+
+        mockMvc.perform(productForm(post("/ui/products"), "20000").param("repaymentType", "DIFFERENTIATED"))
+                .andExpect(redirectedUrl("/ui/products"));
+
+        // Spring turned the option value "DIFFERENTIATED" into the enum
+        verify(loanProductService).create(argThat(request -> request.repaymentType() == RepaymentType.DIFFERENTIATED));
     }
 
     @Test
@@ -112,6 +129,7 @@ class LoanProductWebControllerTest {
                 .andExpect(content().string(containsString("action=\"/ui/products/1\"")))
                 .andExpect(content().string(containsString("value=\"Consumer Loan\"")))
                 .andExpect(content().string(containsString("value=\"14.50\"")))
+                .andExpect(content().string(containsString("value=\"ANNUITY\" selected=\"selected\"")))
                 // the product requires document types 1 and 2, but not 3
                 .andExpect(content().string(containsString("value=\"1\" checked=\"checked\"")))
                 .andExpect(content().string(containsString("value=\"2\" checked=\"checked\"")))
@@ -174,6 +192,6 @@ class LoanProductWebControllerTest {
 
     private LoanProductRequest productRequest(String maxAmount, Set<Long> documentTypeIds) {
         return new LoanProductRequest("Consumer Loan", new BigDecimal("14.5"), new BigDecimal("500"),
-                new BigDecimal(maxAmount), 3, 48, documentTypeIds);
+                new BigDecimal(maxAmount), 3, 48, null, documentTypeIds);
     }
 }

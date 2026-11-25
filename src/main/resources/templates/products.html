@@ -37,6 +37,10 @@
                         <dd th:text="${p.minTermMonths} + ' to ' + ${p.maxTermMonths} + ' months'">3 to 48 months</dd>
                     </div>
                     <div>
+                        <dt>Payments</dt>
+                        <dd th:text="${p.repaymentType.label}">Equal monthly payments</dd>
+                    </div>
+                    <div>
                         <dt>Documents</dt>
                         <dd>
                             <span class="tag" th:each="d : ${p.requiredDocuments}" th:text="${d.name}">ID Card</span>

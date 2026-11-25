@@ -5,7 +5,8 @@ import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.entity.application.LoanApplication;
 import ge.kiu.loanplatform.entity.document.Document;
 import ge.kiu.loanplatform.entity.document.DocumentType;
-import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.repository.application.LoanApplicationRepository;
 import ge.kiu.loanplatform.repository.document.DocumentRepository;
@@ -97,7 +98,9 @@ class DocumentServiceTest {
         when(documentRepository.findById(10L)).thenReturn(Optional.of(document(ApplicationStatus.APPROVED)));
 
         assertThatThrownBy(() -> documentService.delete(10L))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(InvalidStatusException.class)
+                .hasMessage("Document with id 10 belongs to an application that is APPROVED and cannot be deleted. An APPROVED application can only be rejected or have its decision undone.")
+                .extracting("code").isEqualTo(ErrorCode.APPLICATION_NOT_MODIFIABLE);
         verify(fileStorageService, never()).delete(any());
         verify(documentRepository, never()).delete(any());
     }

@@ -3,6 +3,8 @@ package ge.kiu.loanplatform.entity.product;
 import ge.kiu.loanplatform.entity.document.DocumentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -11,6 +13,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
@@ -46,6 +49,15 @@ public class LoanProduct {
 
     @Column(nullable = false)
     private Integer maxTermMonths;
+
+    // Strategy pattern: which RepaymentStrategy calculates the payments of this product's loans.
+    // Stored as text ("ANNUITY"), like ApplicationStatus. @ColumnDefault: ddl-auto=update adds the new
+    // column with this default, so products saved before the column existed become ANNUITY.
+    // "= ANNUITY": a new product in Java also starts as ANNUITY.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @ColumnDefault("'ANNUITY'")
+    private RepaymentType repaymentType = RepaymentType.ANNUITY;
 
     @ManyToMany
     @JoinTable(

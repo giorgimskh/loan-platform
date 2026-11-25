@@ -4,6 +4,7 @@ import ge.kiu.loanplatform.dto.calculation.PaymentCalculationResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
 import ge.kiu.loanplatform.dto.product.LoanProductRequest;
 import ge.kiu.loanplatform.dto.product.LoanProductResponse;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -56,12 +58,13 @@ class LoanProductControllerTest {
     @Test
     void calculate_returns200WithThePayment() throws Exception {
         when(loanApplicationService.calculate(1L, new BigDecimal("5000"), 12))
-                .thenReturn(new PaymentCalculationResponse(new BigDecimal("5000"), new BigDecimal("14.50"), 12,
-                        new BigDecimal("450.11"), new BigDecimal("5401.36"), new BigDecimal("401.36")));
+                .thenReturn(new PaymentCalculationResponse(new BigDecimal("5000"), new BigDecimal("14.50"), 12, RepaymentType.ANNUITY,
+                        new BigDecimal("450.11"), new BigDecimal("450.15"), new BigDecimal("5401.36"), new BigDecimal("401.36")));
 
         mockMvc.perform(get("/api/products/1/calculate").param("amount", "5000").param("termMonths", "12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.monthlyPayment").value(450.11))
+                .andExpect(jsonPath("$.lastPayment").value(450.15))
                 .andExpect(jsonPath("$.totalInterest").value(401.36));
     }
 
@@ -122,7 +125,40 @@ class LoanProductControllerTest {
                         .content(VALID_BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("Consumer Loan"));
+                .andExpect(jsonPath("$.name").value("Consumer Loan"))
+                .andExpect(jsonPath("$.repaymentType").value("ANNUITY"));
+    }
+
+    @Test
+    void create_passesTheRepaymentTypeToTheService() throws Exception {
+        when(loanProductService.create(any(LoanProductRequest.class))).thenReturn(response());
+
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Consumer Loan","interestRate":12.5,"minAmount":500,"maxAmount":20000,
+                                 "minTermMonths":6,"maxTermMonths":60,"repaymentType":"DIFFERENTIATED",
+                                 "requiredDocumentTypeIds":[1]}
+                                """))
+                .andExpect(status().isCreated());
+
+        // Jackson turned the text "DIFFERENTIATED" into the enum value
+        verify(loanProductService).create(argThat(request -> request.repaymentType() == RepaymentType.DIFFERENTIATED));
+    }
+
+    @Test
+    void create_returns400_whenRepaymentTypeIsUnknown() throws Exception {
+        mockMvc.perform(post("/api/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Consumer Loan","interestRate":12.5,"minAmount":500,"maxAmount":20000,
+                                 "minTermMonths":6,"maxTermMonths":60,"repaymentType":"WEEKLY",
+                                 "requiredDocumentTypeIds":[1]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST_BODY"));
+
+        verifyNoInteractions(loanProductService);
     }
 
     @Test
@@ -210,6 +246,7 @@ class LoanProductControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(VALID_BODY))
                 .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.message").value("Loan product with name Consumer Loan already exists"));
     }
@@ -289,7 +326,7 @@ class LoanProductControllerTest {
 
     private LoanProductResponse response() {
         return new LoanProductResponse(1L, "Consumer Loan", new BigDecimal("12.5"),
-                new BigDecimal("500"), new BigDecimal("20000"), 6, 60,
+                new BigDecimal("500"), new BigDecimal("20000"), 6, 60, RepaymentType.ANNUITY,
                 List.of(new DocumentTypeResponse(1L, "ID Card")));
     }
 }

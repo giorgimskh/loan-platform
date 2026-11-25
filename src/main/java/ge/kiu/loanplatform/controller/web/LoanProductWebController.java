@@ -3,6 +3,7 @@ package ge.kiu.loanplatform.controller.web;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
 import ge.kiu.loanplatform.dto.product.LoanProductRequest;
 import ge.kiu.loanplatform.dto.product.LoanProductResponse;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
@@ -85,6 +86,7 @@ public class LoanProductWebController {
         values.put("maxAmount", product.maxAmount().toPlainString());
         values.put("minTermMonths", product.minTermMonths().toString());
         values.put("maxTermMonths", product.maxTermMonths().toString());
+        values.put("repaymentType", product.repaymentType().name()); // the select starts on the current method
 
         model.addAttribute("values", values);
         model.addAttribute("productId", id);
@@ -120,9 +122,11 @@ public class LoanProductWebController {
         return "redirect:/ui/products";
     }
 
-    // The product form needs every document type (its checkboxes) and which of them are ticked
+    // The product form needs every document type (its checkboxes), which of them are ticked,
+    // and every repayment method (the options of its select)
     private String productForm(Model model, List<String> checkedIds) {
         model.addAttribute("documentTypes", documentTypeService.getAll());
+        model.addAttribute("repaymentTypes", RepaymentType.values());
         // no checkbox ticked = the browser sends nothing, so checkedIds can be null
         model.addAttribute("checkedIds", checkedIds == null ? List.of() : checkedIds);
         return "product-form";

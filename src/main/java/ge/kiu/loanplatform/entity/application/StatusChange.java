@@ -50,6 +50,18 @@ public class StatusChange {
         changedAt = LocalDateTime.now();
     }
 
+    // Static factory method: a history line for the status (and rejection reason) the application has right now.
+    // Memento pattern: the line is made from the application's own snapshot (createMemento).
+    // It does not add itself to the history; the caller does that.
+    public static StatusChange from(LoanApplication application) {
+        ApplicationStateMemento snapshot = application.createMemento();
+        StatusChange change = new StatusChange();
+        change.loanApplication = application;
+        change.status = snapshot.status();
+        change.decisionComment = snapshot.decisionComment();
+        return change;
+    }
+
     // Memento pattern: a history row is a saved snapshot; this turns it back into one
     public ApplicationStateMemento toMemento() {
         return new ApplicationStateMemento(status, decisionComment);

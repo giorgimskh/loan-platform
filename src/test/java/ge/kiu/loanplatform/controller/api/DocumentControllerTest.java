@@ -2,7 +2,10 @@ package ge.kiu.loanplatform.controller.api;
 
 import ge.kiu.loanplatform.dto.document.DocumentFile;
 import ge.kiu.loanplatform.dto.document.DocumentResponse;
+import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
+import ge.kiu.loanplatform.exception.custom.ErrorCode;
+import ge.kiu.loanplatform.exception.custom.InvalidStatusException;
 import ge.kiu.loanplatform.exception.custom.ResourceNotFoundException;
 import ge.kiu.loanplatform.service.document.DocumentService;
 import org.junit.jupiter.api.Test;
@@ -90,6 +93,7 @@ class DocumentControllerTest {
         mockMvc.perform(multipart("/api/applications/1/documents")
                         .file(pdf))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"))
                 .andExpect(jsonPath("$.message").value("Missing required parameter 'documentTypeId'"));
 
         verifyNoInteractions(documentService);
@@ -100,7 +104,8 @@ class DocumentControllerTest {
         mockMvc.perform(multipart("/api/applications/1/documents")
                         .file(pdf)
                         .param("documentTypeId", "abc"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"));
 
         verifyNoInteractions(documentService);
     }
@@ -292,11 +297,15 @@ class DocumentControllerTest {
 
     @Test
     void delete_returns409_whenApplicationIsAlreadyDecided() throws Exception {
-        doThrow(new ConflictException("Document with id 10 belongs to an application that is APPROVED and cannot be deleted"))
+        doThrow(new InvalidStatusException(ErrorCode.APPLICATION_NOT_MODIFIABLE, ApplicationStatus.APPROVED, "Document with id 10 belongs to an application that is APPROVED and cannot be deleted."))
                 .when(documentService).delete(10L);
 
         mockMvc.perform(delete("/api/documents/10"))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("APPLICATION_NOT_MODIFIABLE"))
+                .andExpect(jsonPath("$.message").value("Document with id 10 belongs to an application that is APPROVED and cannot be deleted. An APPROVED application can only be rejected or have its decision undone."))
+                .andExpect(jsonPath("$.currentStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.allowedStatuses[0]").value("REJECTED"));
     }
 
     @Test

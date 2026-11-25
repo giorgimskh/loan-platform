@@ -7,6 +7,7 @@ import ge.kiu.loanplatform.dto.application.StatusChangeResponse;
 import ge.kiu.loanplatform.dto.calculation.RepaymentScheduleResponse;
 import ge.kiu.loanplatform.dto.calculation.ScheduleEntryResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
+import ge.kiu.loanplatform.dto.file.PersonalDataItem;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import ge.kiu.loanplatform.exception.custom.BusinessRuleException;
 import ge.kiu.loanplatform.exception.custom.ConflictException;
@@ -29,6 +30,7 @@ import java.util.List;
 import static ge.kiu.loanplatform.controller.web.WebTestData.application;
 import static ge.kiu.loanplatform.controller.web.WebTestData.calculation;
 import static ge.kiu.loanplatform.controller.web.WebTestData.customer;
+import static ge.kiu.loanplatform.controller.web.WebTestData.decreasingCalculation;
 import static ge.kiu.loanplatform.controller.web.WebTestData.documentTypes;
 import static ge.kiu.loanplatform.controller.web.WebTestData.pageOf;
 import static ge.kiu.loanplatform.controller.web.WebTestData.product;
@@ -383,7 +385,7 @@ class LoanApplicationWebControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("calculator"))
                 // the product from the link is already chosen, and nothing is marked as wrong
-                .andExpect(content().string(containsString("selected=\"selected\">Consumer Loan at 14.50% per year</option>")))
+                .andExpect(content().string(containsString("selected=\"selected\">Consumer Loan at 14.50% per year, equal monthly payments</option>")))
                 .andExpect(content().string(not(containsString("Amount is required"))));
 
         verify(loanApplicationService, never()).calculate(any(), any(), any());
@@ -399,8 +401,22 @@ class LoanApplicationWebControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("450.11")))
                 .andExpect(content().string(containsString("5,401.36")))
+                .andExpect(content().string(not(containsString("First monthly payment")))) // equal payments: one amount
                 .andExpect(content().string(containsString(
                         "/ui/applications/new?loanProductId=1&amp;amount=5000&amp;termMonths=12")));
+    }
+
+    @Test
+    void calculator_showsTheFirstAndLastPayment_whenPaymentsDecrease() throws Exception { // strategy pattern
+        when(loanProductService.getAll()).thenReturn(List.of(product()));
+        when(loanApplicationService.calculate(1L, new BigDecimal("5000"), 12)).thenReturn(decreasingCalculation());
+
+        mockMvc.perform(get("/ui/calculator")
+                        .param("loanProductId", "1").param("amount", "5000").param("termMonths", "12"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("First monthly payment")))
+                .andExpect(content().string(containsString("477.09")))
+                .andExpect(content().string(containsString("Falls every month to 421.66 in the last month")));
     }
 
     @Test
@@ -473,10 +489,44 @@ class LoanApplicationWebControllerTest {
         mockMvc.perform(get("/ui/applications/7"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Repayment schedule")))
+                .andExpect(content().string(containsString("/api/applications/7/file"))) // visitor pattern download
+                .andExpect(content().string(containsString("Equal monthly payments at 14.50% per year.")))
                 .andExpect(content().string(containsString("4,610.31")))
                 // documents: a download link for everyone, but no delete button after a decision
                 .andExpect(content().string(containsString("/api/documents/10/download")))
                 .andExpect(content().string(not(containsString("/ui/documents/10/delete"))));
+    }
+
+    @Test
+    void applicationDetail_showsThePersonalDataOfTheFile() throws Exception { // visitor pattern
+        when(loanApplicationService.getById(7L)).thenReturn(application(ApplicationStatus.SUBMITTED));
+        when(loanProductService.getById(1L)).thenReturn(product());
+        when(loanApplicationService.getPersonalData(7L)).thenReturn(List.of(
+                new PersonalDataItem("Customer", "Personal number", "01234567890"),
+                new PersonalDataItem("Document 10 (ID Card)", "File name", "ana-passport.pdf")));
+
+        mockMvc.perform(get("/ui/applications/7"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Personal data")))
+                .andExpect(content().string(containsString("Customer, personal number")))
+                .andExpect(content().string(containsString("01234567890")))
+                .andExpect(content().string(containsString("Document 10 (ID Card), file name")))
+                .andExpect(content().string(containsString("ana-passport.pdf")));
+    }
+
+    @Test
+    void applicationDetail_showsTheFirstAndLastPayment_whenTheScheduleDecreases() throws Exception { // strategy pattern
+        when(loanApplicationService.getById(7L)).thenReturn(application(ApplicationStatus.APPROVED));
+        when(loanProductService.getById(1L)).thenReturn(product());
+        when(loanApplicationService.getSchedule(7L)).thenReturn(new RepaymentScheduleResponse(7L, decreasingCalculation(),
+                List.of(new ScheduleEntryResponse(1, new BigDecimal("477.09"), new BigDecimal("60.42"),
+                        new BigDecimal("416.67"), new BigDecimal("4583.33")))));
+
+        mockMvc.perform(get("/ui/applications/7"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Decreasing monthly payments at 14.50% per year.")))
+                .andExpect(content().string(containsString("First to last payment")))
+                .andExpect(content().string(containsString("477.09 to 421.66")));
     }
 
     @Test

@@ -88,6 +88,7 @@ class CustomerControllerTest {
 
         mockMvc.perform(get("/api/customers/99/applications").param("status", "APPROVED"))
                 .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
                 .andExpect(jsonPath("$.message").value("Customer with id 99 not found"));
     }
 

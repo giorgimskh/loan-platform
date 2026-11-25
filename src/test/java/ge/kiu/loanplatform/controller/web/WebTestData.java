@@ -6,6 +6,7 @@ import ge.kiu.loanplatform.dto.customer.CustomerResponse;
 import ge.kiu.loanplatform.dto.document.DocumentResponse;
 import ge.kiu.loanplatform.dto.document.DocumentTypeResponse;
 import ge.kiu.loanplatform.dto.product.LoanProductResponse;
+import ge.kiu.loanplatform.entity.product.RepaymentType;
 import ge.kiu.loanplatform.entity.application.ApplicationStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -23,8 +24,15 @@ final class WebTestData {
     }
 
     static PaymentCalculationResponse calculation() {
+        return new PaymentCalculationResponse(new BigDecimal("5000"), new BigDecimal("14.50"), 12, RepaymentType.ANNUITY,
+                new BigDecimal("450.11"), new BigDecimal("450.15"), new BigDecimal("5401.36"), new BigDecimal("401.36"));
+    }
+
+    // the same loan, calculated with decreasing payments (DifferentiatedRepaymentStrategy)
+    static PaymentCalculationResponse decreasingCalculation() {
         return new PaymentCalculationResponse(new BigDecimal("5000"), new BigDecimal("14.50"), 12,
-                new BigDecimal("450.11"), new BigDecimal("5401.36"), new BigDecimal("401.36"));
+                RepaymentType.DIFFERENTIATED, new BigDecimal("477.09"), new BigDecimal("421.66"),
+                new BigDecimal("5392.70"), new BigDecimal("392.70"));
     }
 
     static CustomerResponse customer() {
@@ -33,7 +41,7 @@ final class WebTestData {
 
     static LoanProductResponse product() {
         return new LoanProductResponse(1L, "Consumer Loan", new BigDecimal("14.50"),
-                new BigDecimal("500.00"), new BigDecimal("20000.00"), 3, 48,
+                new BigDecimal("500.00"), new BigDecimal("20000.00"), 3, 48, RepaymentType.ANNUITY,
                 List.of(new DocumentTypeResponse(1L, "ID Card"), new DocumentTypeResponse(2L, "Salary Certificate")));
     }
 

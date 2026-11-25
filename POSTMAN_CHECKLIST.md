@@ -8,7 +8,8 @@ docker compose up -d      # PostgreSQL on localhost:5433
 ```
 
 On the first start the app inserts sample data: document type `1 ID Card` and products
-`1 Consumer Loan` (500–20000, 3–48 months) and `2 Mortgage` (20000–500000, 60–240 months).
+`1 Consumer Loan` (500–20000, 3–48 months, equal monthly payments) and `2 Mortgage` (20000–500000, 60–240 months,
+decreasing monthly payments).
 Both products require the ID Card.
 
 For every request with a JSON body set the header `Content-Type: application/json`
@@ -16,6 +17,10 @@ For every request with a JSON body set the header `Content-Type: application/jso
 The ids in this list are the ones a fresh, empty database gives.
 
 All endpoints can also be tried in the browser with Swagger UI: `http://localhost:8080/swagger-ui.html`.
+
+Every error body has a `code` (for example `NOT_FOUND`, `VALIDATION_FAILED`, `CONFLICT`). When an action is not
+allowed in the application's status, the code names the reason, the body also has `currentStatus` and
+`allowedStatuses`, and the message ends with what the status still allows (state pattern).
 
 ## Customers
 
@@ -46,15 +51,17 @@ All endpoints can also be tried in the browser with Swagger UI: `http://localhos
 
 | # | Request | Body | Expected |
 |---|---------|------|----------|
-| 16 | `GET /api/products` | – | 200, the 2 sample products |
-| 17 | `POST /api/products` | `{"name":"Auto Loan","interestRate":11.5,"minAmount":1000,"maxAmount":50000,"minTermMonths":6,"maxTermMonths":60,"requiredDocumentTypeIds":[1]}` | 201, product with `id` 3 |
+| 16 | `GET /api/products` | – | 200, the 2 sample products, `repaymentType` `ANNUITY` and `DIFFERENTIATED` |
+| 17 | `POST /api/products` | `{"name":"Auto Loan","interestRate":11.5,"minAmount":1000,"maxAmount":50000,"minTermMonths":6,"maxTermMonths":60,"requiredDocumentTypeIds":[1]}` | 201, product with `id` 3, `repaymentType` `ANNUITY` (not sent = equal payments) |
 | 18 | `POST /api/products` | same body again | 409, name already exists |
 | 19 | `POST /api/products` | same but `"name":"Bad","minAmount":9000,"maxAmount":500` | 400, minimum amount greater than maximum |
 | 20 | `POST /api/products` | same but `"name":"Bad2","requiredDocumentTypeIds":[77]` | 404, document type not found |
-| 21 | `PUT /api/products/3` | `{"name":"Auto Loan","interestRate":12,"minAmount":1000,"maxAmount":60000,"minTermMonths":6,"maxTermMonths":72,"requiredDocumentTypeIds":[1]}` | 200, updated values |
+| 20b | `POST /api/products` | same as 17 but `"name":"Bad3","repaymentType":"WEEKLY"` | 400, `MALFORMED_REQUEST_BODY` (unknown repayment method) |
+| 21 | `PUT /api/products/3` | `{"name":"Auto Loan","interestRate":12,"minAmount":1000,"maxAmount":60000,"minTermMonths":6,"maxTermMonths":72,"requiredDocumentTypeIds":[1]}` | 200, updated values, `repaymentType` still `ANNUITY` |
 | 22 | `PUT /api/products/3` | same but `"name":"Mortgage"` | 409, name already exists |
-| 23 | `GET /api/products/3/calculate?amount=5000&termMonths=12` | – | 200, `monthlyPayment` 444.24, `totalPayment` 5330.93, `totalInterest` 330.93 |
+| 23 | `GET /api/products/3/calculate?amount=5000&termMonths=12` | – | 200, `repaymentType` `ANNUITY`, `monthlyPayment` 444.24, `lastPayment` 444.29, `totalPayment` 5330.93, `totalInterest` 330.93 |
 | 24 | `GET /api/products/3/calculate?amount=50&termMonths=12` | – | 400, amount outside 1000–60000 (rule 1) |
+| 24b | `GET /api/products/2/calculate?amount=120000&termMonths=120` | – | 200, `repaymentType` `DIFFERENTIATED`, `monthlyPayment` 1975.00 falling to `lastPayment` 1008.13, `totalInterest` 58987.80 (strategy pattern) |
 | 25 | `DELETE /api/products/2` | – | 204 (Mortgage has no applications) |
 | 26 | `DELETE /api/products/99` | – | 404 |
 
@@ -104,21 +111,21 @@ Postman: Body → form-data. Key `file` with type **File**, key `documentTypeId`
 | 53 | `GET /api/applications/2/missing-documents` | – | 200, `ID Card` |
 | 54 | `POST /api/applications/2/documents` | form-data: `file` = a PDF, `documentTypeId` = 1 | 201, document `id` 3 |
 | 55 | `PUT /api/applications/2/approve` | – | 200, status `APPROVED` |
-| 56 | `PUT /api/applications/2/approve` | – | 409, already APPROVED (rule 4) |
-| 57 | `GET /api/applications/2/schedule` | – | 200, 24 payments, the last `remainingBalance` is 0 |
-| 58 | `DELETE /api/documents/3` | – | 409, the application is already decided |
+| 56 | `PUT /api/applications/2/approve` | – | 409, `INVALID_STATUS_TRANSITION`, `currentStatus` APPROVED, `allowedStatuses` [REJECTED] (rule 4) |
+| 57 | `GET /api/applications/2/schedule` | – | 200, 24 payments, the last `remainingBalance` is 0, `summary.repaymentType` `ANNUITY` |
+| 58 | `DELETE /api/documents/3` | – | 409, `APPLICATION_NOT_MODIFIABLE`, the application is already APPROVED |
 | 59 | `PUT /api/applications/3/reject` | `{"decisionComment":"  "}` | 400, reason required (rule 5) |
 | 60 | `PUT /api/applications/3/reject` | `{"decisionComment":"Income too low"}` | 200, status `REJECTED`, comment saved |
-| 61 | `PUT /api/applications/3/reject` | `{"decisionComment":"Again"}` | 409, already REJECTED (rule 4) |
+| 61 | `PUT /api/applications/3/reject` | `{"decisionComment":"Again"}` | 409, `INVALID_STATUS_TRANSITION`, `currentStatus` REJECTED, `allowedStatuses` [APPROVED] (rule 4) |
 | 62 | `PUT /api/applications/2/reject` | `{"decisionComment":"Approved by mistake"}` | 200, the decision is changed to `REJECTED` (rule 4) |
 | 63 | `PUT /api/applications/2/approve` | – | 200, changed back to `APPROVED`, `decisionComment` is null |
 | 64 | `GET /api/applications/2/history` | – | 200, four lines: SUBMITTED, APPROVED, REJECTED (with the reason), APPROVED |
 | 65 | `PUT /api/applications/3/undo-decision` | – | 200, back to `SUBMITTED`, `decisionComment` is null (memento pattern) |
 | 66 | `GET /api/applications/3/history` | – | 200, three lines: SUBMITTED, REJECTED, SUBMITTED (nothing is deleted) |
-| 67 | `PUT /api/applications/3/undo-decision` | – | 409, a SUBMITTED application has no decision to undo |
+| 67 | `PUT /api/applications/3/undo-decision` | – | 409, `NO_DECISION_TO_UNDO`, `currentStatus` SUBMITTED, `allowedStatuses` [APPROVED, REJECTED] |
 | 68 | `PUT /api/applications/3/reject` | `{"decisionComment":"Income too low"}` | 200, `REJECTED` again, so the later rows see the same data |
-| 69 | `GET /api/applications/3/schedule` | – | 409, only an APPROVED application has a schedule |
-| 70 | `DELETE /api/applications/3` | – | 409, REJECTED cannot be cancelled (rule 4) |
+| 69 | `GET /api/applications/3/schedule` | – | 409, `NO_REPAYMENT_SCHEDULE`, only an APPROVED application has a schedule |
+| 70 | `DELETE /api/applications/3` | – | 409, `APPLICATION_NOT_MODIFIABLE`, REJECTED cannot be cancelled (rule 4) |
 | 71 | `DELETE /api/documents/2` | – | 204 (application 1 is still SUBMITTED) |
 | 72 | `DELETE /api/applications/1` | – | 204, its files are removed from `uploads/` |
 | 73 | `GET /api/applications/1` | – | 404 |
@@ -139,7 +146,7 @@ These endpoints use the repository query methods (method-name queries and `@Quer
 | 81 | `GET /api/applications/search?productName=Consumer Loan&amountAbove=-1` | – | 400, `fieldErrors` for amountAbove |
 | 82 | `GET /api/applications/reports/approved-totals` | – | 200, one row: `Consumer Loan`, `totalApprovedAmount` 7000.00 |
 | 83 | `GET /api/applications/reports/statistics` | – | 200, `totalApplications` 2, `approved` 1, `rejected` 1, `approvalRate` 50.0, `averageAmount` 4500.00, `totalApprovedAmount` 7000.00 |
-| 84 | `PUT /api/applications/2` | `{"loanProductId":1,"amount":5000,"termMonths":18}` | 409, APPROVED cannot be modified (rule 4) |
+| 84 | `PUT /api/applications/2` | `{"loanProductId":1,"amount":5000,"termMonths":18}` | 409, `APPLICATION_NOT_MODIFIABLE`, APPROVED cannot be modified (rule 4) |
 | 85 | `DELETE /api/customers/1` | – | 409, the customer has applications |
 
 ## Extra validation

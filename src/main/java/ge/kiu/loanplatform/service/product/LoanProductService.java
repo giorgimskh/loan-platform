@@ -101,6 +101,10 @@ public class LoanProductService {
         product.setMaxAmount(request.maxAmount());
         product.setMinTermMonths(request.minTermMonths());
         product.setMaxTermMonths(request.maxTermMonths());
+        // optional: a new product already starts as ANNUITY, an existing one keeps its type
+        if (request.repaymentType() != null) {
+            product.setRepaymentType(request.repaymentType());
+        }
         product.setRequiredDocuments(findDocumentTypes(request.requiredDocumentTypeIds()));
     }
 
